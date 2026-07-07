@@ -11,6 +11,10 @@ def get_db():
         yield db
         db.commit()
 
+        from services.gcs_sync import persist_db_to_cloud_if_configured
+
+        persist_db_to_cloud_if_configured()
+
     except Exception:
         db.rollback()
         raise

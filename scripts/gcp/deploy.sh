@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Build + deploy everything. Usage (from repo root): bash scripts/gcp/deploy.sh
+# Deploy Day Planner like individual_ikr:
+#   - Only Streamlit runs as a Cloud Run SERVICE (scales to zero)
+#   - Telegram poll + notifications run as Cloud Run JOBS on a schedule
 #
-# Prerequisites:
-#   1. cp scripts/gcp/config.env.example scripts/gcp/config.env  (edit project id)
-#   2. Secrets already in Secret Manager (Console) — no .env, no prompts
-#   3. bash scripts/gcp/bootstrap.sh  (first time only)
+# Usage (from repo root): bash scripts/gcp/deploy.sh
 
 set -euo pipefail
 
@@ -18,17 +17,12 @@ load_config
 gcloud config set project "$GCP_PROJECT_ID"
 
 require_secrets
-grant_secret_access
-build_images
-
-prefix="$(image_prefix)"
-deploy_service day-planner-ui "${prefix}-streamlit"
-deploy_service day-planner-jobs "${prefix}-jobs"
-deploy_service day-planner-bot "${prefix}-planner-bot"
-deploy_service day-planner-todo-bot "${prefix}-todo-bot"
-
+build_image
+deploy_streamlit_service
+deploy_all_jobs
 init_database
-setup_scheduler
+setup_schedulers
+retire_legacy_services
 
 ui_url="$(gcloud run services describe day-planner-ui \
   --region "$GCP_REGION" --project "$GCP_PROJECT_ID" \
@@ -36,7 +30,10 @@ ui_url="$(gcloud run services describe day-planner-ui \
 
 echo ""
 log "Deployment complete."
-echo "  Streamlit:  ${ui_url}"
-echo "  Secrets:    Secret Manager (no .env on server)"
+echo "  Streamlit (only service): ${ui_url}"
+echo "  Telegram poll jobs:       every 2 min"
+echo "  Notification job:         every 1 min"
+echo "  DB storage:               gs://${GCS_DATA_BUCKET}/day_planner.db"
 echo ""
-echo "Next: open the URL, log in, link both Telegram bots in Settings."
+echo "Legacy day-planner-bot, day-planner-todo-bot, day-planner-jobs removed."
+echo "Next: open the URL, log in, link both Telegram bots."

@@ -10,7 +10,6 @@ REQUIRED_SECRETS=(
   day-planner-todo-telegram-bot-username
   day-planner-admin-username
   day-planner-admin-password
-  day-planner-scheduler-secret
 )
 
 require_gcloud() {
@@ -25,27 +24,43 @@ load_config() {
   if [[ ! -f "$CONFIG_FILE" ]]; then
     echo "Missing $CONFIG_FILE" >&2
     echo "  cp scripts/gcp/config.env.example scripts/gcp/config.env" >&2
-    echo "  # edit GCP_PROJECT_ID, then re-run" >&2
     exit 1
   fi
   # shellcheck source=/dev/null
   source <(sed 's/\r$//' "$CONFIG_FILE")
   : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID in config.env}"
   : "${GCP_REGION:?Set GCP_REGION in config.env}"
+  : "${GCS_DATA_BUCKET:?Set GCS_DATA_BUCKET in config.env}"
+  : "${AR_REPO:?Set AR_REPO in config.env}"
+  DP_IMAGE="${DP_IMAGE:-day-planner}"
+  RUNNER_SA="${RUNNER_SA:-dp-runner}"
+  SCHEDULER_SA="${SCHEDULER_SA:-dp-scheduler}"
   USE_SECRET_MANAGER="${USE_SECRET_MANAGER:-1}"
   TZ="${TZ:-Asia/Kolkata}"
+  STREAMLIT_PUBLIC="${STREAMLIT_PUBLIC:-1}"
+  STREAMLIT_MIN_INSTANCES="${STREAMLIT_MIN_INSTANCES:-0}"
+  GCS_SYNC_INTERVAL_SEC="${GCS_SYNC_INTERVAL_SEC:-300}"
 }
 
 log() {
   echo "==> $*"
 }
 
-image_prefix() {
-  echo "gcr.io/${GCP_PROJECT_ID}/day-planner"
+image_uri() {
+  echo "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPO}/${DP_IMAGE}:latest"
+}
+
+runner_sa_email() {
+  echo "${RUNNER_SA}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+}
+
+scheduler_sa_email() {
+  echo "${SCHEDULER_SA}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
 }
 
 common_env() {
-  printf 'USE_SECRET_MANAGER=true,USE_CLOUD_SCHEDULER=true,GCP_PROJECT_ID=%s' "$GCP_PROJECT_ID"
+  printf 'GOOGLE_CLOUD_PROJECT=%s,USE_SECRET_MANAGER=%s,USE_CLOUD_SCHEDULER=1,GCP_PROJECT_ID=%s,GCS_DATA_BUCKET=%s,TZ=%s,GCP_REGION=%s' \
+    "$GCP_PROJECT_ID" "$USE_SECRET_MANAGER" "$GCP_PROJECT_ID" "$GCS_DATA_BUCKET" "$TZ" "$GCP_REGION"
 }
 
 secret_exists() {
@@ -63,142 +78,143 @@ require_secrets() {
   done
 
   if ((${#missing[@]} > 0)); then
-    echo "Missing secrets in Secret Manager (add them in Cloud Console):" >&2
+    echo "Missing secrets in Secret Manager:" >&2
     for secret_id in "${missing[@]}"; do
       echo "  - $secret_id" >&2
     done
-    echo "" >&2
-    echo "https://console.cloud.google.com/security/secret-manager?project=${GCP_PROJECT_ID}" >&2
     exit 1
   fi
 
   log "All ${#REQUIRED_SECRETS[@]} secrets found in Secret Manager."
 }
 
-grant_secret_access() {
-  local project_number runtime_sa
-  project_number="$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')"
-  runtime_sa="${project_number}-compute@developer.gserviceaccount.com"
-
-  log "Granting Secret Manager access to ${runtime_sa}..."
-  gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" \
-    --member="serviceAccount:${runtime_sa}" \
-    --role="roles/secretmanager.secretAccessor" \
-    --quiet >/dev/null
-}
-
-build_images() {
-  local prefix image dockerfile
-  prefix="$(image_prefix)"
-
-  for image_dockerfile in \
-    "streamlit:deploy/Dockerfile.streamlit" \
-    "jobs:deploy/Dockerfile.jobs" \
-    "planner-bot:deploy/Dockerfile.planner-bot" \
-    "todo-bot:deploy/Dockerfile.todo-bot"; do
-    image="${image_dockerfile%%:*}"
-    dockerfile="${image_dockerfile#*:}"
-    log "Building ${prefix}-${image}..."
-    gcloud builds submit "$ROOT" \
-      --project "$GCP_PROJECT_ID" \
-      --config "$ROOT/deploy/cloudbuild.yaml" \
-      --substitutions="_IMAGE=${prefix}-${image},_DOCKERFILE=${dockerfile}" \
-      --quiet
-  done
-}
-
-deploy_service() {
-  local name="$1"
-  local image="$2"
-
-  log "Cloud Run service: ${name}"
-  gcloud run deploy "$name" \
-    --image "$image" \
-    --region "$GCP_REGION" \
+build_image() {
+  log "Building image $(image_uri)..."
+  gcloud builds submit "$ROOT" \
     --project "$GCP_PROJECT_ID" \
-    --platform managed \
-    --allow-unauthenticated \
-    --min-instances 1 \
-    --memory 512Mi \
-    --set-env-vars "$(common_env)" \
+    --config "$ROOT/cloudbuild.yaml" \
+    --substitutions="_IMAGE=$(image_uri)" \
     --quiet
 }
 
-init_database() {
-  local prefix image
-  prefix="$(image_prefix)"
-  image="${prefix}-streamlit"
+deploy_streamlit_service() {
+  local img auth_flag
+  img="$(image_uri)"
+  auth_flag="--no-allow-unauthenticated"
 
-  log "Cloud Run Job: day-planner-init-db"
-  if gcloud run jobs describe day-planner-init-db \
-    --region "$GCP_REGION" --project "$GCP_PROJECT_ID" &>/dev/null; then
-    gcloud run jobs update day-planner-init-db \
-      --image "$image" \
-      --region "$GCP_REGION" \
-      --project "$GCP_PROJECT_ID" \
-      --command python \
-      --args scripts/init_db.py \
-      --set-env-vars "$(common_env)" \
-      --quiet
-  else
-    gcloud run jobs create day-planner-init-db \
-      --image "$image" \
-      --region "$GCP_REGION" \
-      --project "$GCP_PROJECT_ID" \
-      --command python \
-      --args scripts/init_db.py \
-      --set-env-vars "$(common_env)" \
-      --quiet
+  if [[ "${STREAMLIT_PUBLIC}" == "1" ]]; then
+    auth_flag="--allow-unauthenticated"
   fi
 
-  gcloud run jobs execute day-planner-init-db \
-    --region "$GCP_REGION" \
-    --project "$GCP_PROJECT_ID" \
-    --wait
+  log "Cloud Run service: day-planner-ui (only always-on service)"
+  # shellcheck disable=SC2086
+  gcloud run deploy day-planner-ui \
+    --image="$img" \
+    --region="$GCP_REGION" \
+    --project="$GCP_PROJECT_ID" \
+    --service-account="$(runner_sa_email)" \
+    --set-env-vars="${common_env},GCS_SYNC_INTERVAL_SEC=${GCS_SYNC_INTERVAL_SEC}" \
+    --port=8080 \
+    --memory=512Mi \
+    --cpu=1 \
+    --min-instances="${STREAMLIT_MIN_INSTANCES}" \
+    --timeout=3600 \
+    --command=/entrypoint-gcp.sh \
+    --args="streamlit,run,app.py,--server.port=8080,--server.address=0.0.0.0,--server.headless=true" \
+    $auth_flag \
+    --quiet
 }
 
-setup_scheduler() {
-  local jobs_url scheduler_secret
-  jobs_url="$(gcloud run services describe day-planner-jobs \
-    --region "$GCP_REGION" --project "$GCP_PROJECT_ID" \
-    --format='value(status.url)')"
+deploy_job() {
+  local job_name="$1"
+  local script_path="$2"
+  local img
+  img="$(image_uri)"
 
-  scheduler_secret="$(gcloud secrets versions access latest \
-    --secret=day-planner-scheduler-secret \
-    --project="$GCP_PROJECT_ID")"
+  log "Cloud Run Job: ${job_name}"
+  local -a flags=(
+    --image="$img"
+    --region="$GCP_REGION"
+    --project="$GCP_PROJECT_ID"
+    --service-account="$(runner_sa_email)"
+    --set-env-vars="$(common_env)"
+    --command=/entrypoint-gcp.sh
+    --args="python,${script_path}"
+    --max-retries=1
+    --task-timeout=15m
+    --memory=512Mi
+    --cpu=1
+    --quiet
+  )
 
-  create_sched_job() {
-    local job_name="$1"
-    local path="$2"
+  if gcloud run jobs describe "$job_name" --region="$GCP_REGION" --project="$GCP_PROJECT_ID" &>/dev/null; then
+    gcloud run jobs update "$job_name" "${flags[@]}"
+  else
+    gcloud run jobs create "$job_name" "${flags[@]}"
+  fi
 
-    log "Cloud Scheduler: ${job_name}"
-    if gcloud scheduler jobs describe "$job_name" \
-      --location "$GCP_REGION" &>/dev/null; then
-      gcloud scheduler jobs update http "$job_name" \
-        --location "$GCP_REGION" \
-        --schedule "* * * * *" \
-        --time-zone "$TZ" \
-        --uri "${jobs_url}${path}" \
-        --http-method POST \
-        --headers "X-Scheduler-Secret=${scheduler_secret},Content-Type=application/json" \
-        --attempt-deadline 120s \
-        --quiet
-    else
-      gcloud scheduler jobs create http "$job_name" \
-        --location "$GCP_REGION" \
-        --schedule "* * * * *" \
-        --time-zone "$TZ" \
-        --uri "${jobs_url}${path}" \
-        --http-method POST \
-        --headers "X-Scheduler-Secret=${scheduler_secret},Content-Type=application/json" \
-        --attempt-deadline 120s \
-        --quiet
+  gcloud run jobs add-iam-policy-binding "$job_name" \
+    --region="$GCP_REGION" \
+    --project="$GCP_PROJECT_ID" \
+    --member="serviceAccount:$(scheduler_sa_email)" \
+    --role="roles/run.invoker" \
+    --quiet >/dev/null
+}
+
+schedule_job() {
+  local sched_name="$1"
+  local cron="$2"
+  local job_name="$3"
+  local uri="https://${GCP_REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${GCP_PROJECT_ID}/jobs/${job_name}:run"
+
+  log "Cloud Scheduler: ${sched_name} (${cron})"
+  if gcloud scheduler jobs describe "$sched_name" --location="$GCP_REGION" &>/dev/null; then
+    gcloud scheduler jobs update http "$sched_name" \
+      --location="$GCP_REGION" \
+      --schedule="$cron" \
+      --uri="$uri" \
+      --http-method=POST \
+      --oauth-service-account-email="$(scheduler_sa_email)" \
+      --time-zone="$TZ" \
+      --quiet
+  else
+    gcloud scheduler jobs create http "$sched_name" \
+      --location="$GCP_REGION" \
+      --schedule="$cron" \
+      --uri="$uri" \
+      --http-method=POST \
+      --oauth-service-account-email="$(scheduler_sa_email)" \
+      --time-zone="$TZ" \
+      --quiet
+  fi
+}
+
+deploy_all_jobs() {
+  deploy_job dp-init-db scripts/init_db.py
+  deploy_job dp-planner-telegram-poll scripts/run_planner_telegram_poll.py
+  deploy_job dp-todo-telegram-poll scripts/run_todo_telegram_poll.py
+  deploy_job dp-notifications-tick scripts/run_notifications_tick.py
+}
+
+setup_schedulers() {
+  schedule_job dp-planner-telegram-poll-schedule "*/2 * * * *" dp-planner-telegram-poll
+  schedule_job dp-todo-telegram-poll-schedule "*/2 * * * *" dp-todo-telegram-poll
+  schedule_job dp-notifications-tick-schedule "* * * * *" dp-notifications-tick
+}
+
+retire_legacy_services() {
+  for svc in day-planner-jobs day-planner-bot day-planner-todo-bot; do
+    if gcloud run services describe "$svc" --region="$GCP_REGION" --project="$GCP_PROJECT_ID" &>/dev/null; then
+      log "Deleting legacy service: $svc (replaced by Cloud Run Jobs)"
+      gcloud run services delete "$svc" --region="$GCP_REGION" --project="$GCP_PROJECT_ID" --quiet || true
     fi
-  }
+  done
+}
 
-  create_sched_job planner-block-starts "/jobs/planner/block-starts"
-  create_sched_job planner-day-summaries "/jobs/planner/day-summaries"
-  create_sched_job todo-morning "/jobs/todo/morning"
-  create_sched_job todo-reminders "/jobs/todo/reminders"
-  create_sched_job todo-task-end "/jobs/todo/task-end"
+init_database() {
+  log "Running init-db job..."
+  gcloud run jobs execute dp-init-db \
+    --region="$GCP_REGION" \
+    --project="$GCP_PROJECT_ID" \
+    --wait
 }

@@ -1,10 +1,15 @@
 import logging
 
+from pathlib import Path
+
 from telegram.ext import Application
 from telegram.ext import CallbackQueryHandler
 from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler
+from telegram.ext import PicklePersistence
 from telegram.ext import filters
+
+from config.settings import DATA_DIR
 
 from config.settings import SCHEDULER_POLL_SECONDS
 from config.settings import TODO_TELEGRAM_BOT_TOKEN
@@ -37,7 +42,15 @@ def build_application() -> Application:
             "(local) or Secret Manager (GCP)."
         )
 
-    application = Application.builder().token(TODO_TELEGRAM_BOT_TOKEN).build()
+    persistence_path = DATA_DIR / "todo_bot_persistence.pkl"
+    persistence_path.parent.mkdir(parents=True, exist_ok=True)
+
+    application = (
+        Application.builder()
+        .token(TODO_TELEGRAM_BOT_TOKEN)
+        .persistence(PicklePersistence(filepath=str(persistence_path)))
+        .build()
+    )
 
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
