@@ -109,7 +109,9 @@ def get_secret(env_key: str, *, default: str = "") -> str:
     try:
         return _fetch_secret_from_gcp(secret_id=secret_id)
     except Exception as error:
-        if env_value:
+        allow_env_fallback = os.getenv("SECRET_ENV_OVERRIDE", "").lower() == "true"
+
+        if allow_env_fallback and env_value:
             logger.warning(
                 "Secret Manager lookup failed for %s (%s); using env value.",
                 env_key,
