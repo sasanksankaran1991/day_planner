@@ -1,0 +1,2 @@
+# Force Unix line endings for shell scripts (Linux servers).
+*.sh text eol=lf
