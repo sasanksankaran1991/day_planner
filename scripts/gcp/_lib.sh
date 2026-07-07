@@ -248,19 +248,70 @@ retire_legacy_services() {
 }
 
 init_database() {
-  log "Syncing admin user from Secret Manager..."
-  if gcloud run jobs describe dp-sync-admin \
+  sync_admin_on_deploy
+}
+
+sync_admin_on_deploy() {
+  local admin_user tmp_db
+  admin_user="$(gcloud secrets versions access latest \
+    --secret=day-planner-admin-username \
+    --project="$GCP_PROJECT_ID" | tr -d '\r\n')"
+
+  log "Syncing admin user '${admin_user}' from Secret Manager into GCS database..."
+
+  if ! gcloud run jobs describe dp-sync-admin \
     --region="$GCP_REGION" --project="$GCP_PROJECT_ID" &>/dev/null; then
-    gcloud run jobs execute dp-sync-admin \
-      --region="$GCP_REGION" \
-      --project="$GCP_PROJECT_ID" \
-      --wait
-  else
+    echo "Cloud Run job dp-sync-admin not found. deploy_all_jobs should create it." >&2
+    exit 1
+  fi
+
+  if ! gcloud run jobs execute dp-sync-admin \
+    --region="$GCP_REGION" \
+    --project="$GCP_PROJECT_ID" \
+    --wait; then
+    echo "dp-sync-admin failed. Check Cloud Run job logs in Console." >&2
+    exit 1
+  fi
+
+  if ! gcloud storage ls "gs://${GCS_DATA_BUCKET}/day_planner.db" &>/dev/null; then
+    log "No database in GCS yet — running dp-init-db..."
     gcloud run jobs execute dp-init-db \
       --region="$GCP_REGION" \
       --project="$GCP_PROJECT_ID" \
       --wait
+    gcloud run jobs execute dp-sync-admin \
+      --region="$GCP_REGION" \
+      --project="$GCP_PROJECT_ID" \
+      --wait
   fi
+
+  if gcloud storage ls "gs://${GCS_DATA_BUCKET}/day_planner.db" &>/dev/null; then
+    tmp_db="$(mktemp)"
+    gcloud storage cp "gs://${GCS_DATA_BUCKET}/day_planner.db" "$tmp_db" --quiet
+    if sqlite3 "$tmp_db" \
+      "SELECT 1 FROM users WHERE username='${admin_user}' AND is_active=1 LIMIT 1;" \
+      | grep -q 1; then
+      log "Admin '${admin_user}' verified in gs://${GCS_DATA_BUCKET}/day_planner.db"
+    else
+      echo "" >&2
+      echo "WARNING: Admin '${admin_user}' not found in GCS database after sync." >&2
+      echo "Re-running init + sync..." >&2
+      gcloud run jobs execute dp-init-db \
+        --region="$GCP_REGION" \
+        --project="$GCP_PROJECT_ID" \
+        --wait
+      gcloud run jobs execute dp-sync-admin \
+        --region="$GCP_REGION" \
+        --project="$GCP_PROJECT_ID" \
+        --wait
+    fi
+    rm -f "$tmp_db"
+  fi
+
+  echo ""
+  log "Admin login (from Secret Manager):"
+  echo "  Username: ${admin_user}"
+  echo "  Password: day-planner-admin-password (GCP Console → Secret Manager)"
 }
 
 print_status() {

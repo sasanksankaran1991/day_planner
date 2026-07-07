@@ -36,6 +36,14 @@ class UserRepository:
         )
 
     @staticmethod
+    def get_by_username_any(db, *, username: str) -> Optional[User]:
+        return (
+            db.query(User)
+            .filter(User.username == username)
+            .first()
+        )
+
+    @staticmethod
     def list_all(db) -> List[User]:
         return (
             db.query(User)

@@ -54,33 +54,30 @@ def render_login():
 
     st.title("Day Planner")
     st.caption("Plan your day — todos and hourly blocks")
+    if gcs_sync_enabled():
+        st.caption(f"Admin username from Secret Manager: `{ADMIN_USERNAME}`")
 
     with st.form("login_form"):
-        username = st.text_input("Username")
+        username = st.text_input("Username", value=ADMIN_USERNAME if gcs_sync_enabled() else "")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login", use_container_width=True)
 
         if submitted:
-            if gcs_sync_enabled():
-                pull_db_from_gcs(dispose_connections=True)
-
             try:
-                UserService.ensure_admin_exists()
+                user = UserService.login(
+                    username=username.strip(),
+                    password=password,
+                )
             except Exception as error:
                 import logging
 
-                logging.getLogger(__name__).exception("Admin sync before login failed")
+                logging.getLogger(__name__).exception("Login failed")
                 st.error(
-                    f"Could not sync admin user from Secret Manager: {error}. "
-                    "Try again in a moment or run: "
+                    f"Login failed: {error}. "
+                    "If this persists, run: "
                     "gcloud run jobs execute dp-sync-admin --wait"
                 )
                 st.stop()
-
-            user = UserService.authenticate(
-                username=username.strip(),
-                password=password,
-            )
 
             if user is None:
                 st.error(

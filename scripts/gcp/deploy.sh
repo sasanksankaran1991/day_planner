@@ -21,7 +21,7 @@ require_bootstrap
 build_image
 deploy_streamlit_service
 deploy_all_jobs
-init_database
+sync_admin_on_deploy
 setup_schedulers
 retire_legacy_services
 
@@ -36,6 +36,7 @@ echo "  Image:                    $(image_uri)"
 echo "  Telegram poll jobs:       every 2 min"
 echo "  Notification job:         every 1 min"
 echo "  DB storage:               gs://${GCS_DATA_BUCKET}/day_planner.db"
+echo "  Admin sync:               runs automatically on every deploy (dp-sync-admin)"
 echo ""
 echo "Legacy day-planner-bot, day-planner-todo-bot, day-planner-jobs removed."
 echo "Next: open the URL, log in, link both Telegram bots."

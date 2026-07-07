@@ -10,6 +10,10 @@ git pull origin main
 bash scripts/gcp/deploy.sh
 ```
 
+Every deploy runs **dp-sync-admin** automatically — creates/updates the admin user
+in the GCS database from Secret Manager (`day-planner-admin-username` /
+`day-planner-admin-password`).
+
 ## First time only
 
 ```bash
