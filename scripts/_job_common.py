@@ -10,7 +10,6 @@ from typing import Iterator
 
 from database.init_db import initialize_database
 from database.migrate import migrate_database
-from services.gcs_db_lock import gcs_db_writer_lock
 from services.gcs_sync import db_was_modified
 from services.gcs_sync import gcs_sync_enabled
 from services.gcs_sync import mark_db_modified
@@ -27,34 +26,19 @@ def print_result(payload: dict) -> None:
     print(json.dumps(payload, indent=2, default=str))
 
 
-def _job_holder(job_name: str) -> str:
-    execution = (
-        os.environ.get("CLOUD_RUN_EXECUTION")
-        or os.environ.get("CLOUD_RUN_JOB")
-        or "job"
-    )
-    return f"job:{job_name}:{execution}"
-
-
 @contextmanager
 def job_db_session(job_name: str) -> Iterator[None]:
-    """Pull/push under the writer lock; job body runs unlocked so UI can interleave."""
+    """Load DB at job start (entrypoint also pulls); push on exit if modified."""
+    del job_name
     reset_db_modified_flag()
 
-    if not gcs_sync_enabled():
-        yield
-        return
-
-    holder = _job_holder(job_name)
-
-    with gcs_db_writer_lock(holder=holder):
+    if gcs_sync_enabled():
         pull_db_from_gcs()
 
     try:
         yield
     finally:
-        with gcs_db_writer_lock(holder=holder):
-            push_db_if_modified()
+        push_db_if_modified()
 
 
 def run_telegram_poll_job(
@@ -84,9 +68,7 @@ def run_telegram_poll_job(
             }
         )
 
-    holder = _job_holder(job_name)
-
-    with gcs_db_writer_lock(holder=holder):
+    if gcs_sync_enabled():
         pull_db_from_gcs()
 
     migrate_database()
@@ -94,9 +76,7 @@ def run_telegram_poll_job(
 
     result = process_telegram_batch_sync(batch)
     mark_db_modified()
-
-    with gcs_db_writer_lock(holder=holder):
-        push_db_if_modified()
+    push_db_if_modified()
 
     return finish_job(
         {

@@ -66,7 +66,7 @@ def pull_telegram_offsets_from_gcs() -> None:
         raise GcsSyncError(f"Could not pull Telegram offsets from GCS: {exc}") from exc
 
 
-def push_db_to_gcs(*, require_generation_match: bool = True) -> None:
+def push_db_to_gcs() -> None:
     if not gcs_sync_enabled():
         return
 
@@ -77,45 +77,25 @@ def push_db_to_gcs(*, require_generation_match: bool = True) -> None:
     try:
         from scripts.gcp.gcs_data_sync import push
 
-        exit_code = push(require_generation_match=require_generation_match)
-
-        if exit_code != 0:
-            raise GcsSyncError(
-                "Database was not saved to cloud storage because a newer copy "
-                "exists (likely a scheduler job wrote first). Please retry."
-            )
-    except GcsSyncError:
-        raise
+        push()
     except Exception as exc:
         logger.exception("GCS push failed")
         raise GcsSyncError(f"Could not push database to GCS: {exc}") from exc
 
 
-def persist_db_to_cloud_if_configured(*, force: bool = False) -> None:
-    from scripts.gcp.gcs_data_sync import refresh_db_generation_from_gcs
-
-    try:
-        push_db_to_gcs(require_generation_match=not force)
-    except GcsSyncError:
-        if force:
-            raise
-        logger.warning("GCS push conflict; refreshing generation and retrying once.")
-        refresh_db_generation_from_gcs()
-        push_db_to_gcs(require_generation_match=True)
+def persist_db_to_cloud_if_configured() -> None:
+    push_db_to_gcs()
+    reset_db_modified_flag()
 
 
-def push_db_if_modified(*, force: bool = False) -> None:
+def push_db_if_modified() -> None:
     if not db_was_modified():
         logger.info("GCS push skipped: no database writes in this run.")
         return
 
     try:
-        persist_db_to_cloud_if_configured(force=force)
+        persist_db_to_cloud_if_configured()
     except GcsSyncError:
-        logger.warning(
-            "GCS push skipped at job end: remote database changed first."
-        )
+        logger.warning("GCS push failed at job end.")
     except Exception:
         logger.exception("GCS push failed at job end")
-
-    reset_db_modified_flag()

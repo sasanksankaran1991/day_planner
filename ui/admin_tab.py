@@ -1,7 +1,6 @@
 import streamlit as st
 
 from config.settings import DEFAULT_TIMEZONE
-from services.gcs_db_lock import GcsDbLockTimeout
 from services.gcs_sync import GcsSyncError
 from services.user_service import UserService
 from utils.enums import UserRole
@@ -33,11 +32,6 @@ def render_admin_tab():
 
                 except ValueError as error:
                     st.error(str(error))
-                except GcsDbLockTimeout:
-                    st.error(
-                        "Database is busy (another job is running). "
-                        "Wait a moment and try again."
-                    )
                 except GcsSyncError as error:
                     st.error(
                         f"User was not saved to cloud storage: {error} "

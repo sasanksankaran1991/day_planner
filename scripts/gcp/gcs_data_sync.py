@@ -105,7 +105,7 @@ def refresh_db_generation_from_gcs() -> None:
         _write_db_generation(int(blob.generation))
 
 
-def push(*, require_generation_match: bool = True) -> int:
+def push(*, require_generation_match: bool = False) -> int:
     from google.api_core.exceptions import PreconditionFailed
     from google.cloud import storage
 
@@ -128,8 +128,7 @@ def push(*, require_generation_match: bool = True) -> int:
             db_blob.upload_from_filename(str(DB_PATH))
     except PreconditionFailed:
         print(
-            "GCS push skipped: remote day_planner.db changed since last pull "
-            "(another job wrote first). Local changes not uploaded.",
+            "GCS push skipped: remote day_planner.db changed since last pull.",
             file=sys.stderr,
         )
         return 1
