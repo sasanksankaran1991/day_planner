@@ -1,0 +1,22 @@
+def build_planner_help_text() -> str:
+    return (
+        "<b>Day Planner bot — help</b>\n\n"
+        "<b>Link account</b>\n"
+        "Day Planner → Settings → Connect Telegram → "
+        "tap <b>Start</b> in this chat.\n\n"
+        "<b>Commands</b>\n"
+        "/start — welcome & link instructions\n"
+        "/help — this message\n"
+        "/today — today's blocks (image + actions)\n"
+        "/link &lt;code&gt; — link with 6-digit code\n\n"
+        "<b>Automatic notifications</b>\n"
+        "• When a block starts — full day image + Done/Skip\n"
+        "• ~5 AM — yesterday's summary (Done/Skip, 7 days)\n\n"
+        "<b>Quick actions</b>\n"
+        "Tap buttons on the image, or reply:\n"
+        "<code>2 yes</code> — mark block 2 done\n"
+        "<code>2 no</code> — mark block 2 skipped\n"
+        "<code>2 undo</code> — reset block 2 to pending\n\n"
+        "<b>Block numbers</b>\n"
+        "Match the number shown on each row in the day image."
+    )
