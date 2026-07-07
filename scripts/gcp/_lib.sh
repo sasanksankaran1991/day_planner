@@ -138,7 +138,7 @@ deploy_streamlit_service() {
     --region="$GCP_REGION" \
     --project="$GCP_PROJECT_ID" \
     --service-account="$(runner_sa_email)" \
-    --set-env-vars="${common_env},GCS_SYNC_INTERVAL_SEC=${GCS_SYNC_INTERVAL_SEC}" \
+    --set-env-vars="$(common_env),GCS_SYNC_INTERVAL_SEC=${GCS_SYNC_INTERVAL_SEC}" \
     --port=8080 \
     --memory=512Mi \
     --cpu=1 \
