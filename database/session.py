@@ -29,7 +29,9 @@ def get_db(*, raise_on_push_error: bool = False):
 
     try:
         yield db
-        had_writes = bool(db.new or db.dirty or db.deleted)
+        had_writes = db.info.pop("has_writes", False) or bool(
+            db.new or db.dirty or db.deleted
+        )
         db.commit()
 
         if had_writes and gcs_sync_enabled():

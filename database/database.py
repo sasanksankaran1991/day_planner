@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from sqlalchemy import create_engine
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 from sqlalchemy.orm import sessionmaker
 
 from config.settings import DB_PATH
@@ -21,6 +23,13 @@ SessionLocal = sessionmaker(
     autocommit=False,
     expire_on_commit=False,
 )
+
+
+@event.listens_for(Session, "before_flush")
+def _track_session_writes(session, flush_context, instances) -> None:
+    """Repositories flush() before commit; track writes here so GCS push runs."""
+    if session.new or session.dirty or session.deleted:
+        session.info["has_writes"] = True
 
 
 def dispose_engine() -> None:

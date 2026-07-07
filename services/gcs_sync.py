@@ -84,8 +84,10 @@ def push_db_to_gcs() -> None:
 
 
 def persist_db_to_cloud_if_configured() -> None:
+    logger.info("Pushing database to gs://%s/", gcs_bucket())
     push_db_to_gcs()
     reset_db_modified_flag()
+    logger.info("Database pushed to GCS successfully.")
 
 
 def push_db_if_modified() -> None:

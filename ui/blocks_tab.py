@@ -708,6 +708,11 @@ def _render_add_block_form(
 
         except ValueError as error:
             st.error(str(error))
+        except Exception as error:
+            import logging
+
+            logging.getLogger(__name__).exception("Add block failed")
+            st.error(f"Could not save block: {error}")
 
 
 @st.dialog("Add time block")
@@ -843,6 +848,11 @@ def _render_edit_block_form(
 
             except ValueError as error:
                 st.error(str(error))
+            except Exception as error:
+                import logging
+
+                logging.getLogger(__name__).exception("Save block failed")
+                st.error(f"Could not save block: {error}")
 
     with col_cancel:
         if st.button("Cancel", key=f"cancel_edit_{block.id}"):
@@ -918,6 +928,11 @@ def _render_insert_block_form(
 
             except ValueError as error:
                 st.error(str(error))
+            except Exception as error:
+                import logging
+
+                logging.getLogger(__name__).exception("Save block failed")
+                st.error(f"Could not save block: {error}")
 
     with col_cancel:
         if st.button("Cancel", key=f"cancel_insert_{block.id}"):
