@@ -40,9 +40,9 @@ def _use_secret_manager() -> bool:
     if explicit in ("1", "true", "yes", "on"):
         return True
 
-    # Default: use Secret Manager when a GCP project id is available
-    # (works on Cloud Run services AND jobs — jobs do not set K_SERVICE).
-    return bool(_resolve_project_id())
+    # Local Mac/Windows: use .env even if gcloud is installed.
+    # GCP: Cloud Run sets K_SERVICE (service) or CLOUD_RUN_JOB (jobs).
+    return bool(os.getenv("K_SERVICE") or os.getenv("CLOUD_RUN_JOB"))
 
 
 def _resolve_project_id() -> str:

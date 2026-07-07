@@ -21,27 +21,74 @@ A personal planning app with **scheduled todos** and **hourly day blocks**, buil
 - **Planner bot** (`scripts/run_bot.py`) — block-start alerts, 5 AM yesterday summary
 - **Todos bot** (`scripts/run_todo_bot.py`) — 5 AM summaries, reminders, `/create` tasks
 
-## Quick start (local)
+## Quick start (Mac or Windows)
 
+Same steps on both platforms — use **`run.py`** (no bash required). **Python 3.9+** required.
+
+### 1. One-time setup
+
+**Mac / Linux:**
 ```bash
 cd day_planner
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
+python run.py setup
+copy .env.example .env    # then edit .env with your Telegram tokens
+```
+
+**Windows (Command Prompt or PowerShell):**
+```cmd
+cd day_planner
+python -m venv .venv
+.venv\Scripts\activate
+python run.py setup
+copy .env.example .env
+```
+
+Or double-click **`run.bat setup`** after creating `.venv`.
+
+### 2. Run the web app
+
+```bash
+python run.py ui
+```
+
+Open http://localhost:8501 — login **`admin`** / **`admin`**.
+
+Data is stored in **`data/day_planner.db`** on your machine (no cloud sync locally).
+
+### 3. Telegram bots (optional, separate terminals)
+
+```bash
+python run.py bot        # Day Planner blocks bot
+python run.py todo-bot   # Todos bot
+```
+
+### Commands
+
+| Command | What it does |
+|---------|----------------|
+| `python run.py setup` | Install pip packages + create database |
+| `python run.py ui` | Streamlit web UI |
+| `python run.py bot` | Planner Telegram bot |
+| `python run.py todo-bot` | Todos Telegram bot |
+| `python run.py init-db` | Re-run migrations + admin user |
+
+**Mac/Linux shortcut:** `./run.sh ui`  
+**Windows shortcut:** `run.bat ui`
+
+---
+
+## Quick start (manual, any OS)
+
+```bash
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env — set TELEGRAM_* and TODO_TELEGRAM_* tokens, change ADMIN_PASSWORD
-python scripts/init_db.py
+cp .env.example .env   # Windows: copy .env.example .env
+python scripts/setup_local_db.py
 streamlit run app.py
 ```
 
-In separate terminals (optional):
-
-```bash
-.venv/bin/python scripts/run_bot.py       # Day Planner blocks bot
-.venv/bin/python scripts/run_todo_bot.py  # Todos bot
-```
-
-Default admin login: `admin` / value from `ADMIN_PASSWORD` in `.env`.
+Default admin login: `admin` / `admin`.
 
 ## Project structure
 
@@ -75,7 +122,8 @@ See `.env.example`. Never commit `.env` — it holds bot tokens and admin passwo
 | `GCP_PROJECT_ID` | GCP project for Secret Manager |
 | `TELEGRAM_BOT_TOKEN` | Planner blocks bot |
 | `TODO_TELEGRAM_BOT_TOKEN` | Todos bot |
-| `ADMIN_PASSWORD` | Initial admin user password |
+| `DEFAULT_ADMIN_PASSWORD` | Local admin password (default `admin`) |
+| `GCS_DATA_BUCKET` | Leave **empty** locally; set only on GCP |
 | `USE_CLOUD_SCHEDULER` | `false` = local 5s bot scheduler; `true` = GCP mode |
 | `SCHEDULER_SECRET` | Auth header for jobs HTTP API |
 | `SCHEDULER_POLL_SECONDS` | Local poll interval (default `5`) |
