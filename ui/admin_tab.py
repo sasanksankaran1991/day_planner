@@ -31,6 +31,8 @@ def render_admin_tab():
 
                 except ValueError as error:
                     st.error(str(error))
+                except Exception as error:
+                    st.error(str(error))
 
     st.divider()
     st.markdown("**Existing users**")

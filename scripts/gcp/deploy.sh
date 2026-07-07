@@ -39,5 +39,8 @@ echo "  DB storage:               gs://${GCS_DATA_BUCKET}/day_planner.db"
 echo ""
 echo "Legacy day-planner-bot, day-planner-todo-bot, day-planner-jobs removed."
 echo "Next: open the URL, log in, link both Telegram bots."
+echo ""
+echo "Custom domain: bash scripts/gcp/map-domain.sh"
+echo "  (then add GoDaddy CNAME: planner -> ghs.googlehosted.com)"
 
 print_status

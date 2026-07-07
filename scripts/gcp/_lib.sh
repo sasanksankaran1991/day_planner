@@ -40,6 +40,8 @@ load_config() {
   STREAMLIT_PUBLIC="${STREAMLIT_PUBLIC:-1}"
   STREAMLIT_MIN_INSTANCES="${STREAMLIT_MIN_INSTANCES:-0}"
   GCS_SYNC_INTERVAL_SEC="${GCS_SYNC_INTERVAL_SEC:-300}"
+  DOMAIN="${DOMAIN:-planner.sasanksankaran.in}"
+  DP_STREAMLIT_SERVICE="${DP_STREAMLIT_SERVICE:-day-planner-ui}"
 }
 
 log() {
@@ -143,6 +145,7 @@ deploy_streamlit_service() {
     --memory=512Mi \
     --cpu=1 \
     --min-instances="${STREAMLIT_MIN_INSTANCES}" \
+    --max-instances=1 \
     --timeout=3600 \
     --command=/entrypoint-gcp.sh \
     --args="streamlit,run,app.py,--server.port=8080,--server.address=0.0.0.0,--server.headless=true" \

@@ -12,6 +12,7 @@ DATABASE_URL = f"sqlite:///{DB_PATH}"
 engine = create_engine(
     DATABASE_URL,
     echo=False,
+    connect_args={"check_same_thread": False},
 )
 
 SessionLocal = sessionmaker(
@@ -20,3 +21,9 @@ SessionLocal = sessionmaker(
     autocommit=False,
     expire_on_commit=False,
 )
+
+
+def dispose_engine() -> None:
+    """Close pooled SQLite connections before replacing the db file on disk."""
+    engine.dispose()
+

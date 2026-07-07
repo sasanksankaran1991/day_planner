@@ -1,33 +1,44 @@
-# GCP deploy (like individual_ikr)
+# GCP deploy
 
-## Cost-efficient architecture
+Production config is committed: **`scripts/gcp/config.env`** (no secrets — those are in Secret Manager).
 
-| Component | Type | Schedule |
-|-----------|------|----------|
-| `day-planner-ui` | Cloud Run **service** | On demand (min instances = 0) |
-| `dp-planner-telegram-poll` | Cloud Run **job** | Every 2 min |
-| `dp-todo-telegram-poll` | Cloud Run **job** | Every 2 min |
-| `dp-notifications-tick` | Cloud Run **job** | Every 1 min |
-
-No always-on bot services. No HTTP jobs server.
-
-SQLite lives in `gs://YOUR_BUCKET/day_planner.db` and syncs via GCS.
-
-## Quick start
+## After git pull
 
 ```bash
-cp scripts/gcp/config.env.example scripts/gcp/config.env
-# edit GCP_PROJECT_ID, GCS_DATA_BUCKET
-
-bash scripts/gcp/bootstrap.sh   # first time only
+cd day_planner
+git pull origin main
 bash scripts/gcp/deploy.sh
 ```
 
-Secrets: add values in [Secret Manager Console](https://console.cloud.google.com/security/secret-manager) — no `.env` on server.
-
-## Manual job run
+## First time only
 
 ```bash
-gcloud run jobs execute dp-planner-telegram-poll --region=asia-south1 --wait
-gcloud run jobs execute dp-notifications-tick --region=asia-south1 --wait
+bash scripts/gcp/bootstrap.sh
+bash scripts/gcp/deploy.sh
 ```
+
+Or one command: `bash scripts/gcp/setup-and-deploy.sh`
+
+## Custom domain
+
+```bash
+bash scripts/gcp/map-domain.sh
+```
+
+GoDaddy CNAME: `planner` → `ghs.googlehosted.com`
+
+## Status
+
+```bash
+bash scripts/gcp/status.sh
+```
+
+## Config reference (`scripts/gcp/config.env`)
+
+| Variable | Value |
+|----------|-------|
+| `GCP_PROJECT_ID` | dayplannerserver |
+| `GCP_REGION` | asia-south1 |
+| `GCS_DATA_BUCKET` | dayplannerserver-dp-data |
+| `DOMAIN` | planner.sasanksankaran.in |
+| `STREAMLIT_PUBLIC` | 1 |
