@@ -28,6 +28,41 @@ cd "$ROOT_DIR"
 
 : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID}"
 
+REQUIRED_SECRETS=(
+  day-planner-telegram-bot-token
+  day-planner-telegram-bot-username
+  day-planner-todo-telegram-bot-token
+  day-planner-todo-telegram-bot-username
+  day-planner-admin-username
+  day-planner-admin-password
+  day-planner-scheduler-secret
+)
+
+secret_exists() {
+  gcloud secrets describe "$1" --project "$GCP_PROJECT_ID" >/dev/null 2>&1
+}
+
+all_secrets_exist() {
+  local secret_id
+  for secret_id in "${REQUIRED_SECRETS[@]}"; do
+    if ! secret_exists "$secret_id"; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+if [[ "${FORCE_UPDATE:-false}" != "true" ]] && all_secrets_exist; then
+  echo "All ${#REQUIRED_SECRETS[@]} secrets already exist in Secret Manager."
+  echo "Nothing to do. Skip this script and run:"
+  echo "  export GCP_PROJECT_ID=${GCP_PROJECT_ID}"
+  echo "  export GCP_REGION=asia-south1"
+  echo "  ./deploy/cloud-run-deploy.sh"
+  echo ""
+  echo "To overwrite secrets, set FORCE_UPDATE=true or pass values via env vars."
+  exit 0
+fi
+
 if [[ "${USE_ENV_FILE:-false}" == "true" && -f .env ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -67,9 +102,13 @@ prompt_if_empty TODO_TELEGRAM_BOT_TOKEN "Todos bot token (TODO_TELEGRAM_BOT_TOKE
 prompt_if_empty TODO_TELEGRAM_BOT_USERNAME "Todos bot username (TODO_TELEGRAM_BOT_USERNAME)"
 prompt_if_empty ADMIN_USERNAME "Admin username (default: admin)"
 prompt_if_empty ADMIN_PASSWORD "Admin password (ADMIN_PASSWORD)" true
-prompt_if_empty SCHEDULER_SECRET "Scheduler secret (or press Enter to auto-generate)" true
 
 ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
+
+if [[ -z "${SCHEDULER_SECRET:-}" ]]; then
+  read -r -s -p "Scheduler secret (press Enter to auto-generate): " SCHEDULER_SECRET || true
+  echo ""
+fi
 
 if [[ -z "${SCHEDULER_SECRET:-}" ]]; then
   SCHEDULER_SECRET="$(openssl rand -hex 32)"

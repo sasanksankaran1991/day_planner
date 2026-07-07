@@ -1,2 +1,2 @@
-# Force Unix line endings for shell scripts (Linux servers).
 *.sh text eol=lf
+scripts/gcp/config.env.example text eol=lf
