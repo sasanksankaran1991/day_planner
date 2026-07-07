@@ -15,6 +15,11 @@ from config.settings import DB_PATH  # noqa: E402
 
 DB_GENERATION_FILE = DATA_DIR / ".gcs_db_generation"
 
+TELEGRAM_OFFSET_BLOBS = (
+    "telegram_offset_planner.txt",
+    "telegram_offset_todo.txt",
+)
+
 
 def _data_files() -> list[tuple[Path, str]]:
     return [
@@ -51,13 +56,19 @@ def _write_db_generation(generation: int) -> None:
     DB_GENERATION_FILE.write_text(str(generation), encoding="utf-8")
 
 
-def pull() -> int:
+def pull_files(blob_names: list[str]) -> int:
     from google.cloud import storage
 
     client = storage.Client()
     bucket = client.bucket(_bucket_name())
+    known = {name for _, name in _data_files()}
 
-    for local_path, blob_name in _data_files():
+    for blob_name in blob_names:
+        if blob_name not in known:
+            print(f"skip (unknown blob): {blob_name}", file=sys.stderr)
+            continue
+
+        local_path = next(path for path, name in _data_files() if name == blob_name)
         blob = bucket.blob(blob_name)
 
         if not blob.exists():
@@ -73,6 +84,10 @@ def pull() -> int:
             _write_db_generation(int(blob.generation))
 
     return 0
+
+
+def pull() -> int:
+    return pull_files([name for _, name in _data_files()])
 
 
 def push(*, require_generation_match: bool = True) -> int:

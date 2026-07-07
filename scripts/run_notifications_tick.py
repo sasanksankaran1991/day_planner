@@ -18,25 +18,23 @@ from jobs.todo import execute_morning_notifications_sync  # noqa: E402
 from jobs.todo import execute_task_end_notifications_sync  # noqa: E402
 from jobs.todo import execute_task_reminders_sync  # noqa: E402
 from scripts._job_common import finish_job  # noqa: E402
-from scripts._job_common import start_job  # noqa: E402
-from services.gcs_sync import pull_db_from_gcs  # noqa: E402
+from scripts._job_common import job_db_session  # noqa: E402
 
 
 def main() -> int:
-    start_job()
-    pull_db_from_gcs()
-    migrate_database()
-    initialize_database()
+    with job_db_session("notifications-tick"):
+        migrate_database()
+        initialize_database()
 
-    results = [
-        execute_block_starts_sync(),
-        execute_day_summaries_sync(),
-        execute_morning_notifications_sync(),
-        execute_task_reminders_sync(),
-        execute_task_end_notifications_sync(),
-    ]
+        results = [
+            execute_block_starts_sync(),
+            execute_day_summaries_sync(),
+            execute_morning_notifications_sync(),
+            execute_task_reminders_sync(),
+            execute_task_end_notifications_sync(),
+        ]
 
-    return finish_job({"job": "notifications-tick", "results": results})
+        return finish_job({"job": "notifications-tick", "results": results})
 
 
 if __name__ == "__main__":

@@ -60,7 +60,13 @@ def render_login():
         submitted = st.form_submit_button("Login", use_container_width=True)
 
         if submitted:
-            user = UserService.authenticate(username=username, password=password)
+            if gcs_sync_enabled():
+                pull_db_from_gcs(dispose_connections=True)
+
+            user = UserService.authenticate(
+                username=username.strip(),
+                password=password,
+            )
 
             if user is None:
                 st.error(

@@ -51,6 +51,21 @@ def pull_db_from_gcs(*, dispose_connections: bool = False) -> None:
         raise GcsSyncError(f"Could not pull database from GCS: {exc}") from exc
 
 
+def pull_telegram_offsets_from_gcs() -> None:
+    """Pull only Telegram offset files (~few bytes) before polling."""
+    if not gcs_sync_enabled():
+        return
+
+    try:
+        from scripts.gcp.gcs_data_sync import TELEGRAM_OFFSET_BLOBS
+        from scripts.gcp.gcs_data_sync import pull_files
+
+        pull_files(list(TELEGRAM_OFFSET_BLOBS))
+    except Exception as exc:
+        logger.exception("GCS offset pull failed")
+        raise GcsSyncError(f"Could not pull Telegram offsets from GCS: {exc}") from exc
+
+
 def push_db_to_gcs(*, require_generation_match: bool = True) -> None:
     if not gcs_sync_enabled():
         return

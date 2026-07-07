@@ -1,12 +1,21 @@
 #!/bin/sh
-# Pull day_planner.db from GCS before a job or Streamlit run.
-# Push happens only when Python code actually writes to the DB (not on every exit).
+# Streamlit: pull DB on start (+ optional periodic refresh).
+# Jobs: pull only after acquiring the writer lock in Python (job_db_session).
 set -e
 
-if [ -n "$GCS_DATA_BUCKET" ]; then
+if [ -n "$GCS_DATA_BUCKET" ] && [ "${1:-}" = "streamlit" ]; then
   echo "GCS sync: pulling from gs://${GCS_DATA_BUCKET}/ ..."
   if ! python /app/scripts/gcp/gcs_data_sync.py pull; then
     echo "GCS sync pull failed (check GCS_DATA_BUCKET and runner SA storage access)." >&2
+  fi
+
+  if [ -n "${GCS_SYNC_INTERVAL_SEC:-}" ]; then
+    (
+      while true; do
+        sleep "$GCS_SYNC_INTERVAL_SEC"
+        python /app/scripts/gcp/gcs_data_sync.py pull || true
+      done
+    ) &
   fi
 fi
 
