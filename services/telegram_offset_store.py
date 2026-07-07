@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from config.settings import DATA_DIR
 
 _OFFSET_FILES = {
@@ -33,3 +31,7 @@ def write_offset(bot_name: str, offset: int) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(str(offset), encoding="utf-8")
+
+    from services.gcs_sync import mark_db_modified
+
+    mark_db_modified()

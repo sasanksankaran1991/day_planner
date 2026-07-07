@@ -219,6 +219,7 @@ schedule_job() {
 
 deploy_all_jobs() {
   deploy_job dp-init-db scripts/init_db.py
+  deploy_job dp-sync-admin scripts/sync_admin_from_secrets.py
   deploy_job dp-planner-telegram-poll scripts/run_planner_telegram_poll.py
   deploy_job dp-todo-telegram-poll scripts/run_todo_telegram_poll.py
   deploy_job dp-notifications-tick scripts/run_notifications_tick.py
@@ -240,11 +241,19 @@ retire_legacy_services() {
 }
 
 init_database() {
-  log "Running init-db job..."
-  gcloud run jobs execute dp-init-db \
-    --region="$GCP_REGION" \
-    --project="$GCP_PROJECT_ID" \
-    --wait
+  log "Syncing admin user from Secret Manager..."
+  if gcloud run jobs describe dp-sync-admin \
+    --region="$GCP_REGION" --project="$GCP_PROJECT_ID" &>/dev/null; then
+    gcloud run jobs execute dp-sync-admin \
+      --region="$GCP_REGION" \
+      --project="$GCP_PROJECT_ID" \
+      --wait
+  else
+    gcloud run jobs execute dp-init-db \
+      --region="$GCP_REGION" \
+      --project="$GCP_PROJECT_ID" \
+      --wait
+  fi
 }
 
 print_status() {

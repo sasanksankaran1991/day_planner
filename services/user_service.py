@@ -123,6 +123,7 @@ class UserService:
 
     @staticmethod
     def ensure_admin_exists() -> None:
+        """Create admin from Secret Manager, or sync password only if it changed."""
         with get_db() as db:
             admin = UserRepository.get_by_username(db=db, username=ADMIN_USERNAME)
 
@@ -135,3 +136,10 @@ class UserService:
                     timezone=DEFAULT_TIMEZONE,
                 )
                 UserRepository.create(db=db, user=admin)
+                return
+
+            if not verify_password(ADMIN_PASSWORD, admin.password_hash):
+                admin.password_hash = hash_password(ADMIN_PASSWORD)
+                admin.role = UserRole.ADMIN
+                admin.is_active = True
+                UserRepository.update(db=db, user=admin)

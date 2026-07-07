@@ -63,7 +63,11 @@ def render_login():
             user = UserService.authenticate(username=username, password=password)
 
             if user is None:
-                st.error("Invalid username or password.")
+                st.error(
+                    "Invalid username or password. "
+                    "Admin credentials come from Secret Manager "
+                    "(day-planner-admin-username / day-planner-admin-password)."
+                )
             else:
                 st.session_state["user"] = {
                     "id": user.id,
@@ -127,7 +131,16 @@ def main():
 
     migrate_database()
     initialize_database()
-    UserService.ensure_admin_exists()
+
+    try:
+        UserService.ensure_admin_exists()
+    except Exception as error:
+        import logging
+
+        logging.getLogger(__name__).exception(
+            "Admin sync failed (login may still work if DB already has admin): %s",
+            error,
+        )
 
     if "user" not in st.session_state:
         render_login()

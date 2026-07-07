@@ -3,6 +3,8 @@ import os
 
 logger = logging.getLogger(__name__)
 
+_db_modified = False
+
 
 class GcsSyncError(RuntimeError):
     pass
@@ -15,6 +17,20 @@ def gcs_bucket() -> str | None:
 
 def gcs_sync_enabled() -> bool:
     return bool(gcs_bucket())
+
+
+def reset_db_modified_flag() -> None:
+    global _db_modified
+    _db_modified = False
+
+
+def mark_db_modified() -> None:
+    global _db_modified
+    _db_modified = True
+
+
+def db_was_modified() -> bool:
+    return _db_modified
 
 
 def pull_db_from_gcs(*, dispose_connections: bool = False) -> None:
@@ -60,5 +76,22 @@ def push_db_to_gcs(*, require_generation_match: bool = True) -> None:
         raise GcsSyncError(f"Could not push database to GCS: {exc}") from exc
 
 
-def persist_db_to_cloud_if_configured() -> None:
-    push_db_to_gcs(require_generation_match=True)
+def persist_db_to_cloud_if_configured(*, force: bool = False) -> None:
+    push_db_to_gcs(require_generation_match=not force)
+
+
+def push_db_if_modified(*, force: bool = False) -> None:
+    if not db_was_modified():
+        logger.info("GCS push skipped: no database writes in this run.")
+        return
+
+    try:
+        persist_db_to_cloud_if_configured(force=force)
+    except Exception:
+        if not force:
+            logger.warning("GCS push retry with force=True")
+            persist_db_to_cloud_if_configured(force=True)
+        else:
+            raise
+
+    reset_db_modified_flag()

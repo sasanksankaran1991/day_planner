@@ -42,5 +42,7 @@ echo "Next: open the URL, log in, link both Telegram bots."
 echo ""
 echo "Custom domain: bash scripts/gcp/map-domain.sh"
 echo "  (then add GoDaddy CNAME: planner -> ghs.googlehosted.com)"
+echo ""
+echo "Diagnose issues: bash scripts/gcp/doctor.sh"
 
 print_status

@@ -18,15 +18,15 @@ from jobs.todo import execute_morning_notifications_sync  # noqa: E402
 from jobs.todo import execute_task_end_notifications_sync  # noqa: E402
 from jobs.todo import execute_task_reminders_sync  # noqa: E402
 from scripts._job_common import finish_job  # noqa: E402
+from scripts._job_common import start_job  # noqa: E402
 from services.gcs_sync import pull_db_from_gcs  # noqa: E402
-from services.user_service import UserService  # noqa: E402
 
 
 def main() -> int:
+    start_job()
     pull_db_from_gcs()
     migrate_database()
     initialize_database()
-    UserService.ensure_admin_exists()
 
     results = [
         execute_block_starts_sync(),
