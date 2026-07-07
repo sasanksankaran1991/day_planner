@@ -42,17 +42,15 @@ SECRET_DEFINITIONS: Dict[str, Tuple[str, str]] = {
 def _use_secret_manager() -> bool:
     explicit = os.getenv("USE_SECRET_MANAGER", "").strip().lower()
 
-    if explicit == "true":
-        return True
-
-    if explicit == "false":
+    if explicit in ("0", "false", "no", "off"):
         return False
 
-    # Auto-enable on Cloud Run when a project id is available.
-    if os.getenv("K_SERVICE") and _resolve_project_id():
+    if explicit in ("1", "true", "yes", "on"):
         return True
 
-    return False
+    # Default: use Secret Manager when a GCP project id is available
+    # (works on Cloud Run services AND jobs — jobs do not set K_SERVICE).
+    return bool(_resolve_project_id())
 
 
 def _resolve_project_id() -> str:
