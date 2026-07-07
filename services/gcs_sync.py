@@ -92,7 +92,16 @@ def push_db_to_gcs(*, require_generation_match: bool = True) -> None:
 
 
 def persist_db_to_cloud_if_configured(*, force: bool = False) -> None:
-    push_db_to_gcs(require_generation_match=not force)
+    from scripts.gcp.gcs_data_sync import refresh_db_generation_from_gcs
+
+    try:
+        push_db_to_gcs(require_generation_match=not force)
+    except GcsSyncError:
+        if force:
+            raise
+        logger.warning("GCS push conflict; refreshing generation and retrying once.")
+        refresh_db_generation_from_gcs()
+        push_db_to_gcs(require_generation_match=True)
 
 
 def push_db_if_modified(*, force: bool = False) -> None:

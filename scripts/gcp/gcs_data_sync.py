@@ -90,6 +90,21 @@ def pull() -> int:
     return pull_files([name for _, name in _data_files()])
 
 
+def refresh_db_generation_from_gcs() -> None:
+    """Update local generation tracker from GCS without replacing the db file."""
+    from google.cloud import storage
+
+    client = storage.Client()
+    blob = client.bucket(_bucket_name()).blob(DB_PATH.name)
+
+    if not blob.exists():
+        return
+
+    blob.reload()
+    if blob.generation is not None:
+        _write_db_generation(int(blob.generation))
+
+
 def push(*, require_generation_match: bool = True) -> int:
     from google.api_core.exceptions import PreconditionFailed
     from google.cloud import storage
