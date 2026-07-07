@@ -38,7 +38,7 @@ bash scripts/gcp/status.sh
 | Variable | Value |
 |----------|-------|
 | `GCP_PROJECT_ID` | dayplannerserver |
-| `GCP_REGION` | asia-south1 |
+| `GCP_REGION` | asia-southeast1 (Singapore) |
 | `GCS_DATA_BUCKET` | dayplannerserver-dp-data |
 | `DOMAIN` | planner.sasanksankaran.in |
 | `STREAMLIT_PUBLIC` | 1 |
