@@ -43,7 +43,15 @@ if ! gcloud storage buckets describe "gs://${GCS_DATA_BUCKET}" &>/dev/null; then
     --location="$GCP_REGION" \
     --uniform-bucket-level-access
 else
-  log "GCS bucket exists: $GCS_DATA_BUCKET"
+  BUCKET_LOC="$(gcloud storage buckets describe "gs://${GCS_DATA_BUCKET}" --format='value(location)' 2>/dev/null || true)"
+  log "GCS bucket exists: $GCS_DATA_BUCKET (location: ${BUCKET_LOC:-unknown})"
+  if [[ -n "${BUCKET_LOC:-}" && "$BUCKET_LOC" != "$GCP_REGION" && "$BUCKET_LOC" != *"$GCP_REGION"* ]]; then
+    echo "" >&2
+    echo "WARNING: Bucket location (${BUCKET_LOC}) differs from GCP_REGION (${GCP_REGION})." >&2
+    echo "Cross-region GCS causes high latency. Use a new bucket name in config.env," >&2
+    echo "run bootstrap again, then: bash scripts/gcp/migrate-bucket.sh <old-bucket>" >&2
+    echo "" >&2
+  fi
 fi
 
 RUNNER_EMAIL="$(runner_sa_email)"

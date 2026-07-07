@@ -87,11 +87,11 @@ def push_db_if_modified(*, force: bool = False) -> None:
 
     try:
         persist_db_to_cloud_if_configured(force=force)
+    except GcsSyncError:
+        logger.warning(
+            "GCS push skipped at job end: remote database changed first."
+        )
     except Exception:
-        if not force:
-            logger.warning("GCS push retry with force=True")
-            persist_db_to_cloud_if_configured(force=True)
-        else:
-            raise
+        logger.exception("GCS push failed at job end")
 
     reset_db_modified_flag()

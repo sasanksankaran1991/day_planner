@@ -1,18 +1,20 @@
 from contextlib import contextmanager
+import logging
 
 from database.database import SessionLocal
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
 def get_db():
+    from services.gcs_sync import GcsSyncError
     from services.gcs_sync import gcs_sync_enabled
     from services.gcs_sync import mark_db_modified
     from services.gcs_sync import persist_db_to_cloud_if_configured
-    from services.gcs_sync import pull_db_from_gcs
 
-    if gcs_sync_enabled():
-        pull_db_from_gcs(dispose_connections=True)
-
+    # GCS pull happens once per container (entrypoint), Streamlit session
+    # (app.py), or job start — not on every DB access.
     db = SessionLocal()
     had_writes = False
 
@@ -26,8 +28,11 @@ def get_db():
             if gcs_sync_enabled():
                 try:
                     persist_db_to_cloud_if_configured(force=False)
-                except Exception:
-                    persist_db_to_cloud_if_configured(force=True)
+                except GcsSyncError:
+                    logger.warning(
+                        "GCS push skipped: remote database changed first. "
+                        "Refresh the page and retry your edit."
+                    )
 
     except Exception:
         db.rollback()

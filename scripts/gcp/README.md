@@ -39,6 +39,17 @@ bash scripts/gcp/status.sh
 |----------|-------|
 | `GCP_PROJECT_ID` | dayplannerserver |
 | `GCP_REGION` | asia-southeast1 (Singapore) |
-| `GCS_DATA_BUCKET` | dayplannerserver-dp-data |
+| `GCS_DATA_BUCKET` | dayplannerserver-dp-data-sg (Singapore) |
+
+## Move DB bucket to Singapore (fix latency)
+
+If Cloud Run is in `asia-southeast1` but the bucket was created in Mumbai:
+
+```bash
+# config.env should use GCS_DATA_BUCKET=dayplannerserver-dp-data-sg
+bash scripts/gcp/bootstrap.sh
+bash scripts/gcp/migrate-bucket.sh dayplannerserver-dp-data
+bash scripts/gcp/deploy.sh
+```
 | `DOMAIN` | planner.sasanksankaran.in |
 | `STREAMLIT_PUBLIC` | 1 |
