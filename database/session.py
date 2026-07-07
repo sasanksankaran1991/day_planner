@@ -20,7 +20,7 @@ def _db_write_holder() -> str:
 
 
 @contextmanager
-def get_db():
+def get_db(*, raise_on_push_error: bool = True):
     from services.gcs_db_lock import gcs_db_writer_lock
     from services.gcs_sync import GcsSyncError
     from services.gcs_sync import db_was_modified
@@ -71,4 +71,11 @@ def get_db():
             _gcs_tx_depth -= 1
 
         if is_outer and db_was_modified():
-            persist_db_to_cloud_if_configured(force=False)
+            try:
+                persist_db_to_cloud_if_configured(force=False)
+            except GcsSyncError:
+                if raise_on_push_error:
+                    raise
+                logger.warning(
+                    "GCS push failed after commit; local database was updated."
+                )

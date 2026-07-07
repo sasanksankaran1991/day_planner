@@ -4,8 +4,6 @@ from config.settings import DEFAULT_ADMIN_PASSWORD
 from config.settings import DEFAULT_ADMIN_USERNAME
 from database.init_db import initialize_database
 from database.migrate import migrate_database
-from services.gcs_sync import gcs_sync_enabled
-from services.gcs_sync import pull_db_from_gcs
 from services.user_service import UserService
 from ui.account_settings_page import render_account_settings_page
 from ui.admin_tab import render_admin_tab
@@ -66,7 +64,7 @@ def render_login():
             try:
                 user = UserService.login(
                     username=username.strip(),
-                    password=password,
+                    password=password.strip(),
                 )
             except Exception as error:
                 import logging
@@ -141,15 +139,11 @@ def main():
         initial_sidebar_state="auto",
     )
 
-    if gcs_sync_enabled() and "gcs_pulled_once" not in st.session_state:
-        pull_db_from_gcs(dispose_connections=True)
-        st.session_state["gcs_pulled_once"] = True
-
     migrate_database()
     initialize_database()
 
     try:
-        UserService.ensure_admin_exists()
+        UserService.ensure_admin_exists(reset_password=True)
     except Exception as error:
         import logging
 
