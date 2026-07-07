@@ -1,10 +1,8 @@
 from typing import List
 from typing import Optional
 
-import secrets
-
-from config.settings import ADMIN_PASSWORD
-from config.settings import ADMIN_USERNAME
+from config.settings import DEFAULT_ADMIN_PASSWORD
+from config.settings import DEFAULT_ADMIN_USERNAME
 from config.settings import DEFAULT_TIMEZONE
 from database.models import User
 from database.session import get_db
@@ -28,17 +26,9 @@ class UserService:
 
     @staticmethod
     def login(*, username: str, password: str) -> Optional[User]:
-        """Authenticate for the login form; admin credentials follow Secret Manager."""
+        """Authenticate against users stored in the database."""
         username = username.strip()
-
-        if (
-            username == ADMIN_USERNAME
-            and secrets.compare_digest(password, ADMIN_PASSWORD)
-        ):
-            UserService.ensure_admin_exists()
-            username = ADMIN_USERNAME
-        else:
-            UserService.ensure_admin_exists()
+        UserService.ensure_admin_exists()
 
         with get_db() as db:
             user = UserRepository.get_by_username(db=db, username=username)
@@ -150,15 +140,18 @@ class UserService:
             UserRepository.update(db=db, user=user)
 
     @staticmethod
-    def ensure_admin_exists() -> None:
-        """Create admin from Secret Manager, or sync password/role/active state."""
+    def ensure_admin_exists(*, reset_password: bool = False) -> None:
+        """Ensure default admin user (admin / admin) exists in the database."""
         with get_db() as db:
-            admin = UserRepository.get_by_username_any(db=db, username=ADMIN_USERNAME)
+            admin = UserRepository.get_by_username_any(
+                db=db,
+                username=DEFAULT_ADMIN_USERNAME,
+            )
 
             if admin is None:
                 admin = User(
-                    username=ADMIN_USERNAME,
-                    password_hash=hash_password(ADMIN_PASSWORD),
+                    username=DEFAULT_ADMIN_USERNAME,
+                    password_hash=hash_password(DEFAULT_ADMIN_PASSWORD),
                     display_name="Administrator",
                     role=UserRole.ADMIN,
                     timezone=DEFAULT_TIMEZONE,
@@ -169,8 +162,11 @@ class UserService:
 
             changed = False
 
-            if not verify_password(ADMIN_PASSWORD, admin.password_hash):
-                admin.password_hash = hash_password(ADMIN_PASSWORD)
+            if reset_password and not verify_password(
+                DEFAULT_ADMIN_PASSWORD,
+                admin.password_hash,
+            ):
+                admin.password_hash = hash_password(DEFAULT_ADMIN_PASSWORD)
                 changed = True
 
             if admin.role != UserRole.ADMIN:

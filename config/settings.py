@@ -39,9 +39,12 @@ TODO_TELEGRAM_BOT_TOKEN = get_secret("TODO_TELEGRAM_BOT_TOKEN")
 
 TODO_TELEGRAM_BOT_USERNAME = get_secret("TODO_TELEGRAM_BOT_USERNAME")
 
-ADMIN_USERNAME = get_secret("ADMIN_USERNAME", default="admin")
+# Default admin is always created in the database (not loaded from Secret Manager).
+DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "admin").strip() or "admin"
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin")
 
-ADMIN_PASSWORD = get_secret("ADMIN_PASSWORD", default="admin123")
+ADMIN_USERNAME = DEFAULT_ADMIN_USERNAME
+ADMIN_PASSWORD = DEFAULT_ADMIN_PASSWORD
 
 PORT = int(os.getenv("PORT", "8080"))
 

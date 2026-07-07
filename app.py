@@ -1,6 +1,7 @@
 import streamlit as st
 
-from config.settings import ADMIN_USERNAME
+from config.settings import DEFAULT_ADMIN_PASSWORD
+from config.settings import DEFAULT_ADMIN_USERNAME
 from database.init_db import initialize_database
 from database.migrate import migrate_database
 from services.gcs_sync import gcs_sync_enabled
@@ -54,11 +55,10 @@ def render_login():
 
     st.title("Day Planner")
     st.caption("Plan your day — todos and hourly blocks")
-    if gcs_sync_enabled():
-        st.caption(f"Admin username from Secret Manager: `{ADMIN_USERNAME}`")
+    st.caption(f"Default login: `{DEFAULT_ADMIN_USERNAME}` / `{DEFAULT_ADMIN_PASSWORD}`")
 
     with st.form("login_form"):
-        username = st.text_input("Username", value=ADMIN_USERNAME if gcs_sync_enabled() else "")
+        username = st.text_input("Username", value=DEFAULT_ADMIN_USERNAME)
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login", use_container_width=True)
 
@@ -82,9 +82,7 @@ def render_login():
             if user is None:
                 st.error(
                     f"Invalid username or password. "
-                    f"Secret Manager admin username is '{ADMIN_USERNAME}' "
-                    f"(secret: day-planner-admin-username). "
-                    f"Password is in day-planner-admin-password — not the local .env file."
+                    f"Default admin is `{DEFAULT_ADMIN_USERNAME}` / `{DEFAULT_ADMIN_PASSWORD}`."
                 )
             else:
                 st.session_state["user"] = {

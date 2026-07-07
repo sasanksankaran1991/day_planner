@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Diagnose admin login: prints Secret Manager username and checks DB in GCS.
+# Diagnose admin login: checks default admin/admin user in GCS database.
 # Usage: bash scripts/gcp/verify-admin-login.sh
 
 set -euo pipefail
@@ -13,12 +13,12 @@ load_config
 
 gcloud config set project "$GCP_PROJECT_ID" --quiet
 
-echo "=== Secret Manager ==="
-admin_user="$(gcloud secrets versions access latest \
-  --secret=day-planner-admin-username \
-  --project="$GCP_PROJECT_ID")"
+admin_user="admin"
+admin_password="admin"
+
+echo "=== Default admin credentials ==="
 echo "Username: ${admin_user}"
-echo "Password: (open in Console — day-planner-admin-password)"
+echo "Password: ${admin_password}"
 
 echo ""
 echo "=== GCS database ==="

@@ -8,8 +8,6 @@ REQUIRED_SECRETS=(
   day-planner-telegram-bot-username
   day-planner-todo-telegram-bot-token
   day-planner-todo-telegram-bot-username
-  day-planner-admin-username
-  day-planner-admin-password
 )
 
 require_gcloud() {
@@ -252,12 +250,10 @@ init_database() {
 }
 
 sync_admin_on_deploy() {
-  local admin_user tmp_db
-  admin_user="$(gcloud secrets versions access latest \
-    --secret=day-planner-admin-username \
-    --project="$GCP_PROJECT_ID" | tr -d '\r\n')"
+  local admin_user="admin"
+  local tmp_db
 
-  log "Syncing admin user '${admin_user}' from Secret Manager into GCS database..."
+  log "Ensuring default admin user '${admin_user}' exists in GCS database..."
 
   if ! gcloud run jobs describe dp-sync-admin \
     --region="$GCP_REGION" --project="$GCP_PROJECT_ID" &>/dev/null; then
@@ -309,9 +305,9 @@ sync_admin_on_deploy() {
   fi
 
   echo ""
-  log "Admin login (from Secret Manager):"
+  log "Admin login:"
   echo "  Username: ${admin_user}"
-  echo "  Password: day-planner-admin-password (GCP Console → Secret Manager)"
+  echo "  Password: ${admin_user}"
 }
 
 print_status() {

@@ -24,14 +24,6 @@ SECRET_DEFINITIONS: Dict[str, Tuple[str, str]] = {
         "SECRET_ID_TODO_TELEGRAM_BOT_USERNAME",
         "day-planner-todo-telegram-bot-username",
     ),
-    "ADMIN_USERNAME": (
-        "SECRET_ID_ADMIN_USERNAME",
-        "day-planner-admin-username",
-    ),
-    "ADMIN_PASSWORD": (
-        "SECRET_ID_ADMIN_PASSWORD",
-        "day-planner-admin-password",
-    ),
     "SCHEDULER_SECRET": (
         "SECRET_ID_SCHEDULER_SECRET",
         "day-planner-scheduler-secret",
