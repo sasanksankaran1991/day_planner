@@ -1,5 +1,6 @@
 import streamlit as st
 
+from config.settings import ADMIN_USERNAME
 from database.init_db import initialize_database
 from database.migrate import migrate_database
 from services.gcs_sync import gcs_sync_enabled
@@ -63,6 +64,19 @@ def render_login():
             if gcs_sync_enabled():
                 pull_db_from_gcs(dispose_connections=True)
 
+            try:
+                UserService.ensure_admin_exists()
+            except Exception as error:
+                import logging
+
+                logging.getLogger(__name__).exception("Admin sync before login failed")
+                st.error(
+                    f"Could not sync admin user from Secret Manager: {error}. "
+                    "Try again in a moment or run: "
+                    "gcloud run jobs execute dp-sync-admin --wait"
+                )
+                st.stop()
+
             user = UserService.authenticate(
                 username=username.strip(),
                 password=password,
@@ -70,9 +84,10 @@ def render_login():
 
             if user is None:
                 st.error(
-                    "Invalid username or password. "
-                    "Admin credentials come from Secret Manager "
-                    "(day-planner-admin-username / day-planner-admin-password)."
+                    f"Invalid username or password. "
+                    f"Secret Manager admin username is '{ADMIN_USERNAME}' "
+                    f"(secret: day-planner-admin-username). "
+                    f"Password is in day-planner-admin-password — not the local .env file."
                 )
             else:
                 st.session_state["user"] = {

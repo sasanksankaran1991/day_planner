@@ -1,6 +1,8 @@
 from typing import List
 from typing import Optional
 
+import secrets
+
 from config.settings import ADMIN_PASSWORD
 from config.settings import ADMIN_USERNAME
 from config.settings import DEFAULT_TIMEZONE
@@ -16,16 +18,23 @@ class UserService:
 
     @staticmethod
     def authenticate(*, username: str, password: str) -> Optional[User]:
+        username = username.strip()
+
         with get_db() as db:
             user = UserRepository.get_by_username(db=db, username=username)
 
-            if user is None:
-                return None
+            if user is not None and verify_password(password, user.password_hash):
+                return user
 
-            if not verify_password(password, user.password_hash):
-                return None
+        # DB may be out of sync with Secret Manager — re-sync admin then retry once.
+        if username == ADMIN_USERNAME and secrets.compare_digest(password, ADMIN_PASSWORD):
+            UserService.ensure_admin_exists()
+            with get_db() as db:
+                user = UserRepository.get_by_username(db=db, username=username)
+                if user is not None and verify_password(password, user.password_hash):
+                    return user
 
-            return user
+        return None
 
     @staticmethod
     def create_user(
