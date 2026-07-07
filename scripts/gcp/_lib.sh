@@ -30,8 +30,8 @@ load_config() {
   source <(sed 's/\r$//' "$CONFIG_FILE")
   : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID in config.env}"
   : "${GCP_REGION:?Set GCP_REGION in config.env}"
-  : "${GCS_DATA_BUCKET:?Set GCS_DATA_BUCKET in config.env}"
-  : "${AR_REPO:?Set AR_REPO in config.env}"
+  GCS_DATA_BUCKET="${GCS_DATA_BUCKET:-${GCP_PROJECT_ID}-dp-data}"
+  AR_REPO="${AR_REPO:-day-planner}"
   DP_IMAGE="${DP_IMAGE:-day-planner}"
   RUNNER_SA="${RUNNER_SA:-dp-runner}"
   SCHEDULER_SA="${SCHEDULER_SA:-dp-scheduler}"
@@ -86,6 +86,31 @@ require_secrets() {
   fi
 
   log "All ${#REQUIRED_SECRETS[@]} secrets found in Secret Manager."
+}
+
+require_bootstrap() {
+  if ! gcloud artifacts repositories describe "$AR_REPO" \
+    --location="$GCP_REGION" --project="$GCP_PROJECT_ID" &>/dev/null; then
+    echo "" >&2
+    echo "Artifact Registry repo '$AR_REPO' not found." >&2
+    echo "Run first: bash scripts/gcp/bootstrap.sh" >&2
+    exit 1
+  fi
+
+  if ! gcloud storage buckets describe "gs://${GCS_DATA_BUCKET}" &>/dev/null; then
+    echo "" >&2
+    echo "GCS bucket 'gs://${GCS_DATA_BUCKET}' not found." >&2
+    echo "Run first: bash scripts/gcp/bootstrap.sh" >&2
+    exit 1
+  fi
+
+  if ! gcloud iam service-accounts describe "$(runner_sa_email)" \
+    --project="$GCP_PROJECT_ID" &>/dev/null; then
+    echo "" >&2
+    echo "Service account $(runner_sa_email) not found." >&2
+    echo "Run first: bash scripts/gcp/bootstrap.sh" >&2
+    exit 1
+  fi
 }
 
 build_image() {
@@ -217,4 +242,28 @@ init_database() {
     --region="$GCP_REGION" \
     --project="$GCP_PROJECT_ID" \
     --wait
+}
+
+print_status() {
+  echo ""
+  log "=== Cloud Run SERVICES (should be 1: day-planner-ui) ==="
+  gcloud run services list \
+    --region="$GCP_REGION" \
+    --project="$GCP_PROJECT_ID" \
+    --format="table(SERVICE,REGION,URL,LAST_DEPLOYED_BY)"
+
+  echo ""
+  log "=== Cloud Run JOBS (should be 4) ==="
+  gcloud run jobs list \
+    --region="$GCP_REGION" \
+    --project="$GCP_PROJECT_ID" \
+    --format="table(JOB,REGION,LAST_RUN_AT)"
+
+  echo ""
+  log "=== Cloud Scheduler (should be 3) ==="
+  gcloud scheduler jobs list \
+    --location="$GCP_REGION" \
+    --project="$GCP_PROJECT_ID" \
+    --format="table(ID,SCHEDULE,TARGET_TYPE,STATE)" 2>/dev/null || \
+    echo "(none — run bootstrap + deploy)"
 }

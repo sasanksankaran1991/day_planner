@@ -17,6 +17,7 @@ load_config
 gcloud config set project "$GCP_PROJECT_ID"
 
 require_secrets
+require_bootstrap
 build_image
 deploy_streamlit_service
 deploy_all_jobs
@@ -31,9 +32,12 @@ ui_url="$(gcloud run services describe day-planner-ui \
 echo ""
 log "Deployment complete."
 echo "  Streamlit (only service): ${ui_url}"
+echo "  Image:                    $(image_uri)"
 echo "  Telegram poll jobs:       every 2 min"
 echo "  Notification job:         every 1 min"
 echo "  DB storage:               gs://${GCS_DATA_BUCKET}/day_planner.db"
 echo ""
 echo "Legacy day-planner-bot, day-planner-todo-bot, day-planner-jobs removed."
 echo "Next: open the URL, log in, link both Telegram bots."
+
+print_status
