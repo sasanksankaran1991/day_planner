@@ -8,6 +8,7 @@ import streamlit as st
 from services.todo_service import TodoService
 from services.user_service import UserService
 from ui.tag_helpers import render_tag_selector
+from ui.tag_helpers import resolve_tag_id_from_session
 from utils.enums import OccurrenceStatus
 from utils.enums import RecurrenceType
 from utils.recurrence import generate_occurrence_dates
@@ -502,15 +503,11 @@ def resolve_quick_add_tag_id(*, tags: list, tags_required: bool) -> Optional[int
     if not tags:
         return None
 
-    selected_tag = st.session_state.get("quick_add_tag")
-
-    if selected_tag is not None:
-        return selected_tag.id
-
-    if tags_required:
-        raise ValueError("Please select a tag.")
-
-    return None
+    return resolve_tag_id_from_session(
+        key="quick_add_tag",
+        tags=tags,
+        required=tags_required,
+    )
 
 
 def collect_quick_add_input(
@@ -636,22 +633,18 @@ def render_add_task_form(
     st.caption(f"Adding task for **{plan_date.strftime('%A, %d %b %Y')}**")
 
     st.text_input("Task title", key="quick_add_title")
-    time_col, tag_col = st.columns(2)
+    st.time_input(
+        "Time",
+        value=default_time,
+        key="quick_add_time",
+    )
 
-    with time_col:
-        st.time_input(
-            "Time",
-            value=default_time,
-            key="quick_add_time",
+    if tags:
+        render_tag_selector(
+            tags=tags,
+            required=tags_required,
+            key="quick_add_tag",
         )
-
-    with tag_col:
-        if tags:
-            render_tag_selector(
-                tags=tags,
-                required=tags_required,
-                key="quick_add_tag",
-            )
 
     show_advanced = st.checkbox(
         "Advanced options",

@@ -42,6 +42,17 @@ class PlannerTagRepository:
         )
 
     @staticmethod
+    def get_by_name_any_status(db, *, user_id: int, name: str) -> Optional[PlannerTag]:
+        return (
+            db.query(PlannerTag)
+            .filter(
+                PlannerTag.user_id == user_id,
+                PlannerTag.name == name,
+            )
+            .first()
+        )
+
+    @staticmethod
     def create(db, *, tag: PlannerTag) -> PlannerTag:
         db.add(tag)
         db.flush()

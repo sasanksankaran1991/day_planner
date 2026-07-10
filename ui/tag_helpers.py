@@ -1,3 +1,4 @@
+from typing import Dict
 from typing import List
 from typing import Optional
 
@@ -20,6 +21,33 @@ def render_tag_pill(*, tag: Optional[PlannerTag]) -> str:
     return tag_pill_html(tag=tag)
 
 
+def _resolve_tag_id_from_session(
+    *,
+    key: str,
+    tags: List[PlannerTag],
+) -> Optional[int]:
+    selected = st.session_state.get(key)
+
+    if selected is None:
+        return None
+
+    if isinstance(selected, PlannerTag):
+        return selected.id
+
+    if isinstance(selected, int):
+        return selected
+
+    if isinstance(selected, str):
+        if selected == "No tag":
+            return None
+
+        for tag in tags:
+            if tag.name == selected:
+                return tag.id
+
+    return None
+
+
 def render_tag_selector(
     *,
     tags: List[PlannerTag],
@@ -32,31 +60,56 @@ def render_tag_selector(
             st.warning("Add tags in Settings before creating blocks.")
         return None
 
-    if not required:
-        selected = st.selectbox(
-            "Tag (optional)",
-            options=[None, *tags],
-            format_func=lambda tag: "No tag" if tag is None else tag.name,
-            index=0,
-            key=key,
-        )
-        return selected.id if selected else None
+    tag_by_name: Dict[str, PlannerTag] = {tag.name: tag for tag in tags}
+    option_names = [tag.name for tag in tags]
 
-    options = tags
-    default_index = 0
+    if not required:
+        option_names = ["No tag", *option_names]
+
+    default_name: Optional[str] = None
 
     if current_tag_id is not None:
-        for index, tag in enumerate(options):
+        for tag in tags:
             if tag.id == current_tag_id:
-                default_index = index
+                default_name = tag.name
                 break
+    elif not required:
+        default_name = "No tag"
+    elif option_names:
+        default_name = option_names[0]
 
-    selected = st.selectbox(
-        "Tag",
-        options=options,
-        format_func=lambda tag: tag.name,
-        index=default_index,
+    st.markdown(
+        " ".join(tag_pill_html(tag=tag) for tag in tags),
+        unsafe_allow_html=True,
+    )
+
+    label = "Tag" if required else "Tag (optional)"
+    selected_name = st.pills(
+        label,
+        options=option_names,
+        default=default_name,
+        selection_mode="single",
         key=key,
     )
 
-    return selected.id if selected else None
+    if not selected_name or selected_name == "No tag":
+        return None
+
+    return tag_by_name[selected_name].id
+
+
+def resolve_tag_id_from_session(
+    *,
+    key: str,
+    tags: List[PlannerTag],
+    required: bool,
+) -> Optional[int]:
+    tag_id = _resolve_tag_id_from_session(key=key, tags=tags)
+
+    if tag_id is not None:
+        return tag_id
+
+    if required:
+        raise ValueError("Please select a tag.")
+
+    return None

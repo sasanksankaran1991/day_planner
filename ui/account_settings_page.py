@@ -106,21 +106,94 @@ def _render_tags_section(*, user_id: int) -> None:
 
     st.caption(
         "Create tags with colors for planner blocks and todos. "
-        "Turn on **Require** to make tag selection mandatory when creating blocks or tasks."
+        "Turn on **Require** to make tag selection mandatory when creating blocks or tasks. "
+        "Re-adding a deleted tag name restores the previous tag."
     )
 
     tags = PlannerTagService.list_tags(user_id=user_id)
 
     if tags:
-        for tag in tags:
-            tag_col, toggle_col, delete_col = st.columns([4, 2, 1])
+        for index, tag in enumerate(tags):
+            name_col, color_col, order_col, toggle_col, delete_col = st.columns(
+                [3, 2, 2, 2, 1]
+            )
 
-            with tag_col:
+            with name_col:
                 st.markdown(
                     f'<span class="planner-tag-pill" style="background:{tag.color};">'
                     f"{tag.name}</span>",
                     unsafe_allow_html=True,
                 )
+
+            with color_col:
+                picked_color = st.color_picker(
+                    "Color",
+                    value=tag.color,
+                    key=f"tag_color_{tag.id}",
+                    label_visibility="collapsed",
+                )
+
+                if picked_color.upper() != tag.color.upper():
+                    try:
+                        PlannerTagService.update_tag_color(
+                            user_id=user_id,
+                            tag_id=tag.id,
+                            color=picked_color,
+                        )
+                        st.rerun()
+                    except ValueError as error:
+                        st.error(str(error))
+
+            with order_col:
+                order_buttons = st.columns(2)
+
+                with order_buttons[0]:
+                    if st.button(
+                        "↑",
+                        key=f"tag_up_{tag.id}",
+                        disabled=index == 0,
+                        help="Move up",
+                    ):
+                        PlannerTagService.move_tag(
+                            user_id=user_id,
+                            tag_id=tag.id,
+                            direction="up",
+                        )
+                        st.rerun()
+
+                with order_buttons[1]:
+                    if st.button(
+                        "↓",
+                        key=f"tag_down_{tag.id}",
+                        disabled=index == len(tags) - 1,
+                        help="Move down",
+                    ):
+                        PlannerTagService.move_tag(
+                            user_id=user_id,
+                            tag_id=tag.id,
+                            direction="down",
+                        )
+                        st.rerun()
+
+                sort_order = st.number_input(
+                    "Order",
+                    min_value=0,
+                    value=tag.sort_order,
+                    step=1,
+                    key=f"tag_order_{tag.id}",
+                    label_visibility="collapsed",
+                )
+
+                if sort_order != tag.sort_order:
+                    try:
+                        PlannerTagService.update_tag_sort_order(
+                            user_id=user_id,
+                            tag_id=tag.id,
+                            sort_order=int(sort_order),
+                        )
+                        st.rerun()
+                    except ValueError as error:
+                        st.error(str(error))
 
             with toggle_col:
                 require = st.toggle(
@@ -155,7 +228,7 @@ def _render_tags_section(*, user_id: int) -> None:
                     name=name,
                     color=color,
                 )
-                st.success("Tag added.")
+                st.success("Tag saved.")
                 st.rerun()
             except ValueError as error:
                 st.error(str(error))

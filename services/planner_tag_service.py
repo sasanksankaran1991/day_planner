@@ -54,13 +54,26 @@ class PlannerTagService:
             if existing:
                 raise ValueError(f"Tag '{cleaned_name}' already exists.")
 
+            inactive = PlannerTagRepository.get_by_name_any_status(
+                db=db,
+                user_id=user_id,
+                name=cleaned_name,
+            )
+
             tags = PlannerTagRepository.list_for_user(db=db, user_id=user_id)
             default_color = DEFAULT_TAG_COLORS[len(tags) % len(DEFAULT_TAG_COLORS)]
+            resolved_color = normalized_color or default_color
+
+            if inactive is not None:
+                inactive.is_active = True
+                inactive.color = resolved_color
+                inactive.sort_order = len(tags)
+                return PlannerTagRepository.update(db=db, tag=inactive)
 
             tag = PlannerTag(
                 user_id=user_id,
                 name=cleaned_name,
-                color=normalized_color or default_color,
+                color=resolved_color,
                 sort_order=len(tags),
             )
 
@@ -81,6 +94,68 @@ class PlannerTagService:
 
             tag.require_on_create = require_on_create
             return PlannerTagRepository.update(db=db, tag=tag)
+
+    @staticmethod
+    def update_tag_color(*, user_id: int, tag_id: int, color: str) -> PlannerTag:
+        normalized_color = PlannerTagService._normalize_color(color)
+
+        with get_db() as db:
+            tag = PlannerTagRepository.get_by_id(db=db, tag_id=tag_id)
+
+            if tag is None or tag.user_id != user_id:
+                raise ValueError("Tag not found.")
+
+            tag.color = normalized_color
+            return PlannerTagRepository.update(db=db, tag=tag)
+
+    @staticmethod
+    def update_tag_sort_order(
+        *,
+        user_id: int,
+        tag_id: int,
+        sort_order: int,
+    ) -> PlannerTag:
+        if sort_order < 0:
+            raise ValueError("Sort order cannot be negative.")
+
+        with get_db() as db:
+            tag = PlannerTagRepository.get_by_id(db=db, tag_id=tag_id)
+
+            if tag is None or tag.user_id != user_id:
+                raise ValueError("Tag not found.")
+
+            tag.sort_order = sort_order
+            return PlannerTagRepository.update(db=db, tag=tag)
+
+    @staticmethod
+    def move_tag(*, user_id: int, tag_id: int, direction: str) -> None:
+        if direction not in {"up", "down"}:
+            raise ValueError("Direction must be 'up' or 'down'.")
+
+        with get_db() as db:
+            tags = PlannerTagRepository.list_for_user(db=db, user_id=user_id)
+            index = next(
+                (idx for idx, tag in enumerate(tags) if tag.id == tag_id),
+                None,
+            )
+
+            if index is None:
+                raise ValueError("Tag not found.")
+
+            swap_index = index - 1 if direction == "up" else index + 1
+
+            if swap_index < 0 or swap_index >= len(tags):
+                return
+
+            reordered = list(tags)
+            reordered[index], reordered[swap_index] = (
+                reordered[swap_index],
+                reordered[index],
+            )
+
+            for order, tag in enumerate(reordered):
+                tag.sort_order = order
+                PlannerTagRepository.update(db=db, tag=tag)
 
     @staticmethod
     def delete_tag(*, user_id: int, tag_id: int) -> None:
