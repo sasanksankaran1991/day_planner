@@ -20,11 +20,11 @@ from utils.time_slots import time_diff_minutes
 
 SUMMARY_UPDATE_WINDOW_DAYS = 7
 
-ROW_HEIGHT = 56
+ROW_HEIGHT = 68
 PADDING = 24
 WIDTH = 900
-HEADER_HEIGHT = 96
-FOOTER_HEIGHT = 56
+HEADER_HEIGHT = 110
+FOOTER_HEIGHT = 64
 
 # Match Streamlit block ribbon colors in ui/blocks_tab.py
 STATE_COLORS = {
@@ -192,7 +192,7 @@ def _draw_tag_pill(
     vertical_padding = 5
     text_width = _text_width(draw, label, font)
     pill_width = text_width + (horizontal_padding * 2)
-    pill_height = 24
+    pill_height = 28
 
     draw.rounded_rectangle(
         (left, top, left + pill_width, top + pill_height),
@@ -280,22 +280,22 @@ class TelegramDayPlanImageBuilder:
         image = Image.new("RGB", (WIDTH, height), (248, 249, 250))
         draw = ImageDraw.Draw(image)
 
-        title_font = _load_font(size=28, bold=True)
-        meta_font = _load_font(size=20)
-        code_font = _load_font(size=20, bold=True)
-        label_font = _load_font(size=16, bold=True)
-        row_font = _load_font(size=20)
-        tag_font = _load_font(size=15, bold=True)
-        footer_font = _load_font(size=16)
+        title_font = _load_font(size=34, bold=True)
+        meta_font = _load_font(size=24)
+        code_font = _load_font(size=24, bold=True)
+        label_font = _load_font(size=20, bold=True)
+        row_font = _load_font(size=24)
+        tag_font = _load_font(size=18, bold=True)
+        footer_font = _load_font(size=20)
 
         draw.text(
-            (PADDING, 20),
+            (PADDING, 22),
             plan_date.strftime("%A, %d %b %Y"),
             fill=(33, 37, 41),
             font=title_font,
         )
         draw.text(
-            (PADDING, 58),
+            (PADDING, 68),
             f"Achievement: {percent}%  ({done_count}/{total})",
             fill=(73, 80, 87),
             font=meta_font,
@@ -327,12 +327,12 @@ class TelegramDayPlanImageBuilder:
             )
 
             code_label = str(index + 1)
-            row_text_top = row_top + 16
+            row_text_top = row_top + 18
             code_left = PADDING + 14
             draw.text((code_left, row_text_top), code_label, fill=text_color, font=code_font)
 
             tag_left = code_left + 36
-            tag_top = row_top + 14
+            tag_top = row_top + 16
             tag_width = _draw_tag_pill(
                 draw,
                 left=tag_left,
@@ -391,12 +391,12 @@ class TelegramDayPlanImageBuilder:
 
         for label, color in legend_items:
             draw.rounded_rectangle(
-                (legend_x, legend_y, legend_x + 14, legend_y + 14),
+                (legend_x, legend_y, legend_x + 16, legend_y + 16),
                 radius=4,
                 fill=color,
             )
-            draw.text((legend_x + 22, legend_y - 2), label, fill=(73, 80, 87), font=footer_font)
-            legend_x += 150
+            draw.text((legend_x + 24, legend_y - 2), label, fill=(73, 80, 87), font=footer_font)
+            legend_x += 160
 
         buffer = BytesIO()
         image.save(buffer, format="PNG")
