@@ -51,7 +51,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "/create — add a new task\n"
         "/cancel — stop task creation\n\n"
         "Reply with task number + action: "
-        "<code>2 yes</code> done, <code>2 no</code> skip.",
+        "<code>2 yes</code> done, <code>2 no</code> skip. "
+        "Use Postpone → Custom for calendar picker.",
         parse_mode="HTML",
     )
 

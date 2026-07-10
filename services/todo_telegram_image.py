@@ -391,6 +391,15 @@ class TelegramTodoImageBuilder:
                             today=today,
                         ),
                     ),
+                    InlineKeyboardButton(
+                        f"⏰ {task_number} Postpone",
+                        callback_data=action_callback_data(
+                            action="tp",
+                            task_number=task_number,
+                            plan_date=plan_date,
+                            today=today,
+                        ),
+                    ),
                 ]
             )
 
@@ -424,7 +433,7 @@ class TelegramTodoImageBuilder:
             lines.extend(
                 [
                     "",
-                    "Tap Done / Skip below for any open tasks.",
+                    "Tap Done / Skip / Postpone below for any open tasks.",
                     (
                         f"Buttons stay active for {SUMMARY_UPDATE_WINDOW_DAYS} days "
                         "after the task date."
@@ -458,9 +467,10 @@ class TelegramTodoImageBuilder:
             "",
             (
                 f'<code>{task_number} yes</code> done · '
-                f'<code>{task_number} no</code> skip'
+                f'<code>{task_number} no</code> skip · '
+                f'Postpone → <b>Custom</b> for calendar'
             ),
-            "Or tap the Done / Skip buttons below.",
+            "Or tap the Done / Skip / Postpone buttons below.",
         ]
 
         return "\n".join(lines)
@@ -478,12 +488,31 @@ class TelegramTodoImageBuilder:
             "",
             (
                 f'<code>{task_number} yes</code> done · '
-                f'<code>{task_number} no</code> skip'
+                f'<code>{task_number} no</code> skip · '
+                f'Postpone → <b>Custom</b> for calendar'
             ),
-            "Or tap the Done / Skip buttons below.",
+            "Or tap the Done / Skip / Postpone buttons below.",
         ]
 
         return "\n".join(lines)
+
+    @staticmethod
+    def build_postpone_options_keyboard(
+        *,
+        task_number: int,
+        plan_date: date,
+        today: date,
+    ) -> InlineKeyboardMarkup:
+        from todo_bot.postpone_picker import (
+            build_postpone_options_keyboard as build_custom_postpone_keyboard,
+        )
+
+        return build_custom_postpone_keyboard(
+            task_number=task_number,
+            plan_date=plan_date,
+            today=today,
+            action_callback_data=action_callback_data,
+        )
 
     @staticmethod
     def build_single_task_keyboard(
@@ -512,6 +541,15 @@ class TelegramTodoImageBuilder:
                         f"⏭ {task_number} Skip",
                         callback_data=action_callback_data(
                             action="ts",
+                            task_number=task_number,
+                            plan_date=plan_date,
+                            today=today,
+                        ),
+                    ),
+                    InlineKeyboardButton(
+                        f"⏰ {task_number} Postpone",
+                        callback_data=action_callback_data(
+                            action="tp",
                             task_number=task_number,
                             plan_date=plan_date,
                             today=today,

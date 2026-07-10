@@ -58,7 +58,10 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("today", today_command))
     application.add_handler(build_create_conversation())
     application.add_handler(
-        CallbackQueryHandler(todo_action_callback, pattern=r"^t[ds]:")
+        CallbackQueryHandler(
+            todo_action_callback,
+            pattern=r"^t(p30|p60|ptm|pcu|pdy|pdm|pdt|pdn|ptb|pt|px|pnoop|p|d|s):",
+        )
     )
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, todo_reply_message)

@@ -1,3 +1,4 @@
+import re
 import secrets
 from datetime import date
 from datetime import datetime
@@ -26,7 +27,10 @@ from services.todo_telegram_image import build_day_summary_notification
 from services.todo_telegram_image import build_task_end_notification
 from services.todo_telegram_image import build_task_reminder_notification
 from services.todo_telegram_image import build_today_list_notification
+from services.todo_telegram_image import action_callback_data
+from todo_bot.postpone_picker import build_postpone_options_keyboard as build_custom_postpone_keyboard
 from services.todo_telegram_image import format_task_time_range
+from services.todo_telegram_image import html_escape
 from services.todo_telegram_image import is_task_actionable
 from utils.enums import OccurrenceStatus
 from utils.time_slots import minutes_to_time
@@ -241,7 +245,7 @@ class TodoTelegramService:
 
         action = parts[0]
 
-        if action not in ("td", "ts"):
+        if action not in ("td", "ts", "tp", "tp30", "tp60", "tptm", "tpcu"):
             raise ValueError("Invalid action.")
 
         if len(parts) == 2:
@@ -312,6 +316,197 @@ class TodoTelegramService:
 
         time_label = format_task_time_range(task_time=item["display_time"])
         return f"⏭ Task {task_number} marked skipped: {item['title']} ({time_label})"
+
+    @staticmethod
+    def postpone_task_by_number(
+        *,
+        chat_id: str,
+        task_number: int,
+        plan_date: Optional[date] = None,
+        new_date: date,
+        new_time: time,
+    ) -> str:
+        user = TodoTelegramService.get_user_by_chat_id(chat_id=chat_id)
+
+        if user is None:
+            raise ValueError("Telegram account is not linked.")
+
+        _items, item, _number, _today, target_date, _now = _get_task_action_context(
+            user=user,
+            task_number=task_number,
+            plan_date=plan_date,
+        )
+
+        if not is_task_actionable(item=item):
+            raise ValueError(f"Task {task_number} is not open for updates.")
+
+        TodoService.postpone_occurrence(
+            occurrence_id=item["occurrence_id"],
+            user_id=user.id,
+            new_date=new_date,
+            new_time=new_time,
+        )
+
+        time_label = format_task_time_range(task_time=new_time)
+        return (
+            f"⏰ Task {task_number} postponed to "
+            f"{new_date.strftime('%d %b %Y')} {time_label}: {item['title']}"
+        )
+
+    @staticmethod
+    def postpone_task_preset(
+        *,
+        chat_id: str,
+        task_number: int,
+        plan_date: Optional[date],
+        preset: str,
+    ) -> str:
+        user = TodoTelegramService.get_user_by_chat_id(chat_id=chat_id)
+
+        if user is None:
+            raise ValueError("Telegram account is not linked.")
+
+        _items, item, _number, today, target_date, now = _get_task_action_context(
+            user=user,
+            task_number=task_number,
+            plan_date=plan_date,
+        )
+
+        tz = pytz.timezone(user.timezone)
+        task_time = _truncate_time(item["display_time"])
+
+        if preset == "tp30":
+            base = datetime.combine(today, now, tzinfo=tz) + timedelta(minutes=30)
+        elif preset == "tp60":
+            base = datetime.combine(today, now, tzinfo=tz) + timedelta(hours=1)
+        elif preset == "tptm":
+            new_date = today + timedelta(days=1)
+            return TodoTelegramService.postpone_task_by_number(
+                chat_id=chat_id,
+                task_number=task_number,
+                plan_date=plan_date,
+                new_date=new_date,
+                new_time=task_time,
+            )
+        else:
+            raise ValueError("Invalid postpone preset.")
+
+        return TodoTelegramService.postpone_task_by_number(
+            chat_id=chat_id,
+            task_number=task_number,
+            plan_date=plan_date,
+            new_date=base.date(),
+            new_time=base.time().replace(second=0, microsecond=0),
+        )
+
+    @staticmethod
+    def parse_postpone_reply(
+        *,
+        text: str,
+        user,
+    ) -> Tuple[int, date, time]:
+        custom_match = re.match(
+            r"^\s*#?(\d+)\s+postpone\s+(\d{2}-\d{2}-\d{4})\s+(\d{1,2}:\d{2})\s*$",
+            text,
+            re.IGNORECASE,
+        )
+
+        if custom_match:
+            task_number = int(custom_match.group(1))
+            new_date = datetime.strptime(
+                custom_match.group(2),
+                "%d-%m-%Y",
+            ).date()
+            new_time = datetime.strptime(
+                custom_match.group(3),
+                "%H:%M",
+            ).time()
+            return task_number, new_date, new_time
+
+        later_match = re.match(
+            r"^\s*#?(\d+)\s+later\s+(\d{1,2}:\d{2})\s*$",
+            text,
+            re.IGNORECASE,
+        )
+
+        if later_match:
+            tz = pytz.timezone(user.timezone)
+            today = datetime.now(tz).date()
+            task_number = int(later_match.group(1))
+            new_time = datetime.strptime(
+                later_match.group(2),
+                "%H:%M",
+            ).time()
+            return task_number, today, new_time
+
+        tomorrow_match = re.match(
+            r"^\s*#?(\d+)\s+postpone\s+tomorrow\s+(\d{1,2}:\d{2})\s*$",
+            text,
+            re.IGNORECASE,
+        )
+
+        if tomorrow_match:
+            tz = pytz.timezone(user.timezone)
+            today = datetime.now(tz).date()
+            task_number = int(tomorrow_match.group(1))
+            new_time = datetime.strptime(
+                tomorrow_match.group(2),
+                "%H:%M",
+            ).time()
+            return task_number, today + timedelta(days=1), new_time
+
+        raise ValueError(
+            "Use formats like "
+            "<code>2 later 14:00</code>, "
+            "<code>2 postpone 10-07-2026 09:30</code>, or "
+            "<code>2 postpone tomorrow 09:30</code>."
+        )
+
+    @staticmethod
+    def get_task_action_context(
+        *,
+        user,
+        task_number: int,
+        plan_date: Optional[date] = None,
+    ):
+        return _get_task_action_context(
+            user=user,
+            task_number=task_number,
+            plan_date=plan_date,
+        )
+
+    @staticmethod
+    def build_postpone_prompt(
+        *,
+        chat_id: str,
+        task_number: int,
+        plan_date: Optional[date] = None,
+    ) -> Tuple[str, object]:
+        user = TodoTelegramService.get_user_by_chat_id(chat_id=chat_id)
+
+        if user is None:
+            raise ValueError("Telegram account is not linked.")
+
+        _items, item, _number, today, target_date, _now = _get_task_action_context(
+            user=user,
+            task_number=task_number,
+            plan_date=plan_date,
+        )
+
+        if not is_task_actionable(item=item):
+            raise ValueError(f"Task {task_number} is not open for updates.")
+
+        reply_markup = build_custom_postpone_keyboard(
+            task_number=task_number,
+            plan_date=target_date,
+            today=today,
+            action_callback_data=action_callback_data,
+        )
+        message = (
+            f"⏰ Postpone task {task_number}: <b>{html_escape(item['title'])}</b>\n"
+            "Choose a quick option or tap <b>Custom</b> to pick date & time."
+        )
+        return message, reply_markup
 
     @staticmethod
     def _get_user_items_for_date(*, user, plan_date: date, now: time) -> List[dict]:
